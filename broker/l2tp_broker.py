@@ -305,8 +305,10 @@ class Tunnel(gevent.Greenlet):
       try:
         data, address = self.socket.recvfrom(1024)
       except gsocket.error, e:
-        logger.error("Socket error %d in tunnel %d with %s:%d!" % (e.errno, 
-          self.id, self.endpoint[0], self.endpoint[1]))
+        if e.errno != 9:
+          logger.error("Socket error %d in tunnel %d with %s:%d!" % (e.errno, 
+            self.id, self.endpoint[0], self.endpoint[1]))
+        
         return
       
       if address != self.endpoint:
