@@ -17,11 +17,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
+import ConfigParser
 import conntrack
 import construct as cs
 import datetime
 import gevent
 import gevent.socket as gsocket
+import gevent_subprocess
 import genetlink
 import logging
 import netfilter.rule
@@ -330,7 +332,15 @@ class Tunnel(gevent.Greenlet):
     self.keep_alive_do.kill()
     
     for session in self.sessions.values():
+      # Invoke any pre-down hooks
+      self.manager.hook('session.pre-down', self.id, session.id, session.name, self.endpoint[0],
+        self.endpoint[1], self.port)
+      
       self.manager.netlink.session_delete(self.id, session.id)
+      
+      # Invoke any down hooks
+      self.manager.hook('session.down', self.id, session.id, session.name, self.endpoint[0],
+        self.endpoint[1], self.port)
     
     self.socket.close()
     self.remove_netfilter()
@@ -352,13 +362,17 @@ class Tunnel(gevent.Greenlet):
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
       self.manager.netlink.tunnel_create(self.id, 1, self.socket.fileno())
-      self.create_session()
+      session = self.create_session()
     except L2TPTunnelExists:
       self.socket.close()
       raise
     except NetlinkError:
       self.socket.close()
       raise TunnelSetupFailed
+    
+    # Invoke any post-setup hooks
+    self.manager.hook('session.up', self.id, session.id, session.name, self.endpoint[0],
+      self.endpoint[1], self.port)
   
   def create_session(self):
     """
@@ -367,7 +381,7 @@ class Tunnel(gevent.Greenlet):
     session = Session()
     session.id = self.next_session_id
     session.peer_id = session.id
-    session.name = "l2tp%d"
+    session.name = "l2tp%d%d" % (self.id, session.id) 
     self.sessions[session.id] = session
     self.next_session_id += 1
     
@@ -442,43 +456,61 @@ class Tunnel(gevent.Greenlet):
     Marks this tunnel as alive at this moment.
     """
     self.last_alive = datetime.datetime.now()
-  
-  def post_setup_hook(self):
-    """
-    Invoke post processing hooks for this tunnel.
-    """
-    # TODO
-    pass
 
 class TunnelManager(object):
-  def __init__(self, interface, address, port, max_tunnels = 1024):
+  def __init__(self, config):
     """
     Class constructor.
     
-    :param interface: The interface to listen on
-    :param address: The address to listen on
-    :param port: The port to listen on
+    :param config: The configuration object
     """
     logger.info("Setting up the tunnel manager...")
+    self.config = config
+    max_tunnels = config.getint('broker', 'max_tunnels')
     self.netlink = NetlinkInterface()
     self.conntrack = conntrack.ConnectionManager()
     self.tunnels = {}
-    self.cookies = repoze.lru.LRUCache(1024)
+    self.cookies = repoze.lru.LRUCache(config.getint('broker', 'max_cookies'))
     self.secret = os.urandom(32)
-    self.tunnel_ids = range(100, 100 + max_tunnels + 1)
-    self.port_base = 20000
-    self.interface = interface
-    self.address = address
-    self.port = port
+    id_base = config.getint('broker', 'tunnel_id_base')
+    self.tunnel_ids = range(id_base, id_base + max_tunnels + 1)
+    self.port_base = config.getint('broker', 'port_base')
+    self.interface = config.get('broker', 'interface')
+    self.address = config.get('broker', 'address')
+    self.port = config.getint('broker', 'port')
     self.setup_tunnels()
     self.setup_netfilter()
+    self.setup_hooks()
     
     # Log some configuration variables
     logger.info("  Maximum number of tunnels: %d" % max_tunnels)
-    logger.info("  Interface: %s" % interface)
-    logger.info("  Address: %s" % address)
-    logger.info("  Port: %d" % port)
+    logger.info("  Interface: %s" % self.interface)
+    logger.info("  Address: %s" % self.address)
+    logger.info("  Port: %d" % self.port)
     logger.info("Tunnel manager initialized.")
+  
+  def setup_hooks(self):
+    """
+    Sets up any registered hooks.
+    """
+    self.hooks = {}
+    for hook, script in self.config.items('hooks'):
+      self.hooks[hook] = script
+  
+  def hook(self, name, *args):
+    """
+    Executes a given hook. All additional arguments are passed to the
+    hook as script arguments.
+    
+    :param name: Hook name (like session.pre-up)
+    """
+    script = self.hooks.get(name, None)
+    if not script:
+      return
+    
+    # Execute the registered hook
+    logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
+    gevent_subprocess.call([script] + [str(x) for x in args])
   
   def setup_tunnels(self):
     """
@@ -744,23 +776,19 @@ class MessageHandler(object):
         # Clear conntrack tables so all new packets are evaluated against the
         # netfilter rules and so redirected into the tunnel
         tunnel.clear_conntrack()
-        
-        # Invoke any post-setup hooks
-        tunnel.post_setup_hook()
     else:
       # Return the message on any other messages
       return msg
 
 class BaseControl(gevent.Greenlet):
-  def __init__(self, interface, address, port):
+  def __init__(self, config):
     """
     Class constructor.
     
-    :param interface: Interface that we will listen on
-    :param address: Address that will be used for brokering L2TPv3 tunnels
+    :param config: Configuration object
     """
     super(BaseControl, self).__init__()
-    self.manager = TunnelManager(interface, address, port)
+    self.manager = TunnelManager(config)
     self.handler = MessageHandler(self.manager)
     self.closed = False
   
@@ -773,6 +801,7 @@ class BaseControl(gevent.Greenlet):
     
     self.closed = True
     self.manager.close()
+    self.kill()
   
   def _run(self):
     """
@@ -795,11 +824,36 @@ class BaseControl(gevent.Greenlet):
 
 if __name__ == '__main__':
   try:
-    base = BaseControl(sys.argv[1], sys.argv[2], int(sys.argv[3]))
+    # Parse configuration (first argument must be the location of the configuration
+    # file)
+    config = ConfigParser.SafeConfigParser()
+    try:
+      config.read(sys.argv[1])
+    except IOError:
+      print "ERROR: Failed to open the specified configuration file '%s'!" % sys.argv[1]
+      sys.exit(1)
+    except IndexError:
+      print "ERROR: First argument must be a configuration file path!"
+      sys.exit(1)
+    
+    # Setup the base control server
+    base = BaseControl(config)
     base.start()
     gevent.signal(signal.SIGTERM, base.close)
     gevent.signal(signal.SIGINT, base.close)
-    gevent.joinall([base])
+    
+    try:
+      base.join()
+    except KeyboardInterrupt:
+      # SIGINT has been handled and this will cause the application to
+      # shutdown, we wait for this to happen and ignore any further
+      # interruptions
+      while True:
+        try:
+          base.join()
+          break
+        except KeyboardInterrupt:
+          pass
   except L2TPSupportUnavailable:
     logger.error("L2TP kernel support is not available.")
     sys.exit(1)
