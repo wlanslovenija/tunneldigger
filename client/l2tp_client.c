@@ -56,6 +56,8 @@ enum l2tp_ctrl_state {
 typedef struct {
   // UUID
   char *uuid;
+  // Tunnel interface name
+  char *tunnel_iface;
   // Local IP endpoint
   struct sockaddr_in local_endpoint;
   // Broker IP endpoint
@@ -70,7 +72,7 @@ typedef struct {
   struct nl_handle *nl_sock;
   int nl_family;
   
-  // Last keepalive
+  // Last keepalive and timers
   time_t last_alive;
   time_t timer_cookie;
   time_t timer_tunnel;
@@ -125,8 +127,8 @@ void put_u16(unsigned char **buffer, uint16_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_init(const char *uuid, const char *local_ip,
-  const char *broker_ip, int broker_port)
+l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
+  int broker_port, char *tunnel_iface)
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
   if (!ctx) {
@@ -157,7 +159,8 @@ l2tp_context *context_init(const char *uuid, const char *local_ip,
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
     goto free_and_return;
   
-  ctx->uuid = strdup(uuid);
+  ctx->uuid = uuid;
+  ctx->tunnel_iface = tunnel_iface;
   
   // Reset all timers
   time_t now = time(NULL);
@@ -250,6 +253,7 @@ void context_process_control_packet(l2tp_context *ctx)
           ctx->state = STATE_GET_COOKIE;
         } else {
           syslog(LOG_INFO, "Tunnel successfully established.");
+          // TODO Support invocation of external post-processing hooks
           ctx->state = STATE_KEEPALIVE;
         }
       }
@@ -350,7 +354,7 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
   nla_put_u32(msg, L2TP_ATTR_PEER_SESSION_ID, 1);
   nla_put_u16(msg, L2TP_ATTR_PW_TYPE, L2TP_PWTYPE_ETH);
-  nla_put_string(msg, L2TP_ATTR_IFNAME, "l2tp%d");
+  nla_put_string(msg, L2TP_ATTR_IFNAME, ctx->tunnel_iface);
   
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
@@ -358,8 +362,6 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   result = nl_wait_for_ack(ctx->nl_sock);
   if (result < 0)
     return -1;
-  
-  // TODO Support invocation of external post-processing hooks
   
   return 0;
 }
@@ -424,6 +426,8 @@ void context_process(l2tp_context *ctx)
 
 void context_free(l2tp_context *ctx)
 {
+  free(ctx->uuid);
+  free(ctx->tunnel_iface);
   free(ctx);
 }
 
@@ -447,6 +451,7 @@ void show_help(const char *app)
     "       -l ip      local IP address to bind to\n"
     "       -b ip      broker IP address\n"
     "       -p port    broker port (default 53)\n"
+    "       -i iface   tunnel interface name\n"
   );
 }
 
@@ -467,10 +472,10 @@ int main(int argc, char **argv)
   signal(SIGTERM, term_handler);
   
   // Parse program options
-  char *uuid = NULL, *local_ip = NULL, *broker_ip = NULL;
+  char *uuid = NULL, *local_ip = NULL, *broker_ip = NULL, *tunnel_iface = NULL;
   int broker_port = 53;
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -481,6 +486,7 @@ int main(int argc, char **argv)
       case 'l': local_ip = strdup(optarg); break;
       case 'b': broker_ip = strdup(optarg); break;
       case 'p': broker_port = atoi(optarg); break;
+      case 'i': tunnel_iface = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -489,12 +495,13 @@ int main(int argc, char **argv)
     }
   }
   
-  if (!uuid || !local_ip || !broker_ip) {
-    fprintf(stderr, "ERROR: UUID, local IP and broker IP are required options!\n");
+  if (!uuid || !local_ip || !broker_ip || !tunnel_iface) {
+    fprintf(stderr, "ERROR: UUID, local IP, broker IP and tunnel interface are required options!\n");
+    show_help(argv[0]);
     return 1;
   }
   
-  main_context = context_init(uuid, local_ip, broker_ip, broker_port);
+  main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface);
   if (!main_context) {
     fprintf(stderr, "ERROR: Unable to initialize L2TP context!\n");
     return 1;
