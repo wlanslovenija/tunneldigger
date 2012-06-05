@@ -39,6 +39,11 @@
 
 #define L2TP_CONTROL_SIZE 6
 
+#ifdef LIBNL_TINY
+#define nl_handle nl_sock
+#define nl_handle_alloc nl_socket_alloc
+#endif
+
 enum l2tp_ctrl_type {
   CONTROL_TYPE_COOKIE    = 0x01,
   CONTROL_TYPE_PREPARE   = 0x02,
