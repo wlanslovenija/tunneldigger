@@ -58,6 +58,8 @@ typedef struct {
   char *uuid;
   // Tunnel interface name
   char *tunnel_iface;
+  // External hook script
+  char *hook;
   // Local IP endpoint
   struct sockaddr_in local_endpoint;
   // Broker IP endpoint
@@ -161,6 +163,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   
   ctx->uuid = uuid;
   ctx->tunnel_iface = tunnel_iface;
+  ctx->hook = NULL;
   
   // Reset all timers
   time_t now = time(NULL);
@@ -202,6 +205,18 @@ int context_reinitialize(l2tp_context *ctx)
     return -1;
   
   return 0;
+}
+
+void context_call_hook(l2tp_context *ctx, const char *hook)
+{
+  if (ctx->hook == NULL)
+    return;
+  
+  int pid = fork();
+  if (pid == 0) {
+    execl(ctx->hook, ctx->hook, hook, ctx->tunnel_iface, (char*) NULL);
+    exit(1);
+  }
 }
 
 void context_process_control_packet(l2tp_context *ctx)
@@ -253,7 +268,7 @@ void context_process_control_packet(l2tp_context *ctx)
           ctx->state = STATE_GET_COOKIE;
         } else {
           syslog(LOG_INFO, "Tunnel successfully established.");
-          // TODO Support invocation of external post-processing hooks
+          context_call_hook(ctx, "session.up");
           ctx->state = STATE_KEEPALIVE;
         }
       }
@@ -405,6 +420,7 @@ void context_process(l2tp_context *ctx)
       // Check if the tunnel is still alive
       if (time(NULL) - ctx->last_alive > 30) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
+        context_call_hook(ctx, "session.down");
         context_delete_tunnel(ctx);
         ctx->state = STATE_REINIT;
       }
@@ -428,6 +444,7 @@ void context_free(l2tp_context *ctx)
 {
   free(ctx->uuid);
   free(ctx->tunnel_iface);
+  free(ctx->hook);
   free(ctx);
 }
 
@@ -441,6 +458,12 @@ void term_handler(int signum)
   exit(1);
 }
 
+void child_handler(int signum)
+{
+  int status;
+  waitpid(-1, &status, WNOHANG);
+}
+
 void show_help(const char *app)
 {
   fprintf(stderr, "usage: %s [options]\n", app);
@@ -452,6 +475,7 @@ void show_help(const char *app)
     "       -b ip      broker IP address\n"
     "       -p port    broker port (default 53)\n"
     "       -i iface   tunnel interface name\n"
+    "       -s hook    hook script\n"
   );
 }
 
@@ -470,12 +494,14 @@ int main(int argc, char **argv)
   signal(SIGPIPE, SIG_IGN);
   signal(SIGINT, term_handler);
   signal(SIGTERM, term_handler);
+  signal(SIGCHLD, child_handler);
   
   // Parse program options
   char *uuid = NULL, *local_ip = NULL, *broker_ip = NULL, *tunnel_iface = NULL;
+  char *hook = NULL;
   int broker_port = 53;
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -487,6 +513,7 @@ int main(int argc, char **argv)
       case 'b': broker_ip = strdup(optarg); break;
       case 'p': broker_port = atoi(optarg); break;
       case 'i': tunnel_iface = strdup(optarg); break;
+      case 's': hook = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -502,6 +529,7 @@ int main(int argc, char **argv)
   }
   
   main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface);
+  main_context->hook = hook;
   if (!main_context) {
     fprintf(stderr, "ERROR: Unable to initialize L2TP context!\n");
     return 1;
