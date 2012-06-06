@@ -369,10 +369,17 @@ class Tunnel(gevent.Greenlet):
     except NetlinkError:
       self.socket.close()
       raise TunnelSetupFailed
-    
-    # Invoke any post-setup hooks
-    self.manager.hook('session.up', self.id, session.id, session.name, self.endpoint[0],
-      self.endpoint[1], self.port)
+  
+  def call_session_up_hooks(self):
+    """
+    Invokes any registered session establishment hooks for all sessions. This
+    method must be called AFTER the tunnel has been established (after a
+    confirmation packet has been transmitted from the broker to the client),
+    otherwise port translation will not work and the tunnel will be dead.
+    """
+    for session in self.sessions.values():
+      self.manager.hook('session.up', self.id, session.id, session.name, self.endpoint[0],
+        self.endpoint[1], self.port)
   
   def create_session(self):
     """
@@ -776,6 +783,9 @@ class MessageHandler(object):
         # Clear conntrack tables so all new packets are evaluated against the
         # netfilter rules and so redirected into the tunnel
         tunnel.clear_conntrack()
+        
+        # Invoke any session up hooks
+        tunnel.call_session_up_hooks()
     else:
       # Return the message on any other messages
       return msg
