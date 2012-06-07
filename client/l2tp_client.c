@@ -303,7 +303,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 
 void context_send_setup_request(l2tp_context *ctx)
 {
-  char buffer[32];
+  char buffer[512];
   unsigned char *buf = (unsigned char*) &buffer;
   
   // First 8 bytes of payload is the cookie value
