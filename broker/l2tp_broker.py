@@ -93,8 +93,7 @@ L2TP_ENCAPTYPE_UDP = 0
 L2TP_PWTYPE_ETH = 0x0005
 
 # Logger
-logging.basicConfig(level=logging.DEBUG) # XXX
-logger = logging.getLogger("l2tp.broker")
+logger = None
 
 class NetlinkError(Exception):
   pass
@@ -834,6 +833,11 @@ class BaseControl(gevent.Greenlet):
 
 if __name__ == '__main__':
   try:
+    # We must run as root
+    if os.getuid() != 0:
+      print "ERROR: Must be root."
+      sys.exit(1)
+    
     # Parse configuration (first argument must be the location of the configuration
     # file)
     config = ConfigParser.SafeConfigParser()
@@ -845,6 +849,16 @@ if __name__ == '__main__':
     except IndexError:
       print "ERROR: First argument must be a configuration file path!"
       sys.exit(1)
+    
+    # Setup the logger
+    logging.basicConfig(
+      level = logging.DEBUG,
+      format = '%(asctime)s %(levelname)-8s %(message)s',
+      datefmt = '%a, %d %b %Y %H:%M:%S',
+      filename = config.get("log", "filename"),
+      filemode = 'a'
+    )
+    logger = logging.getLogger("tunneldigger.broker")
     
     # Setup the base control server
     base = BaseControl(config)
