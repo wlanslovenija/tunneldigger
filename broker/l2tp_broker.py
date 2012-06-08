@@ -293,6 +293,8 @@ class Tunnel(gevent.Greenlet):
       
       # Check if we are still alive or not; if not, kill the tunnel
       if datetime.datetime.now() - self.last_alive > datetime.timedelta(seconds = 30):
+        logger.warning("Session with tunnel %d to %s:%d timed out." % (self.id, self.endpoint[0],
+          self.endpoint[1]))
         gevent.spawn(self.manager.close_tunnel, self)
         return
       
@@ -310,6 +312,8 @@ class Tunnel(gevent.Greenlet):
         if e.errno != 9:
           logger.error("Socket error %d in tunnel %d with %s:%d!" % (e.errno, 
             self.id, self.endpoint[0], self.endpoint[1]))
+        else:
+          logger.warning("Closing control channel for tunnel %d." % self.id)
         
         return
       
