@@ -64,6 +64,8 @@ typedef struct {
   char *uuid;
   // Tunnel interface name
   char *tunnel_iface;
+  // Local tunnel identifer
+  int tunnel_id;
   // External hook script
   char *hook;
   // Local IP endpoint
@@ -136,7 +138,7 @@ void put_u16(unsigned char **buffer, uint16_t value)
 }
 
 l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
-  int broker_port, char *tunnel_iface)
+  int broker_port, char *tunnel_iface, int tunnel_id)
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
   if (!ctx) {
@@ -169,6 +171,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   
   ctx->uuid = uuid;
   ctx->tunnel_iface = tunnel_iface;
+  ctx->tunnel_id = tunnel_id;
   ctx->hook = NULL;
   
   // Reset all timers
@@ -317,6 +320,12 @@ void context_send_setup_request(l2tp_context *ctx)
   
   put_u8(&buf, uuid_len);
   memcpy(buf, ctx->uuid, uuid_len);
+  buf += uuid_len;
+  
+  // And the local tunnel identifier at the end
+  put_u16(&buf, ctx->tunnel_id);
+  
+  // Now send the packet
   context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
 }
 
@@ -482,6 +491,7 @@ void show_help(const char *app)
     "       -p port    broker port (default 53)\n"
     "       -i iface   tunnel interface name\n"
     "       -s hook    hook script\n"
+    "       -t id      local tunnel id (default 1)\n"
   );
 }
 
@@ -506,8 +516,9 @@ int main(int argc, char **argv)
   char *uuid = NULL, *local_ip = NULL, *broker_ip = NULL, *tunnel_iface = NULL;
   char *hook = NULL;
   int broker_port = 53;
+  int tunnel_id = 1;
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -520,6 +531,7 @@ int main(int argc, char **argv)
       case 'p': broker_port = atoi(optarg); break;
       case 'i': tunnel_iface = strdup(optarg); break;
       case 's': hook = strdup(optarg); break;
+      case 't': tunnel_id = atoi(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -534,7 +546,7 @@ int main(int argc, char **argv)
     return 1;
   }
   
-  main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface);
+  main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface, tunnel_id);
   main_context->hook = hook;
   if (!main_context) {
     fprintf(stderr, "ERROR: Unable to initialize L2TP context!\n");

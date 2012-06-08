@@ -59,7 +59,8 @@ CONTROL_TYPE_KEEPALIVE = 0x05
 # Prepare message
 PrepareMessage = cs.Struct("prepare",
   cs.String("cookie", 8),
-  cs.PascalString("uuid")
+  cs.PascalString("uuid"),
+  cs.Optional(cs.UBInt16("tunnel_id"), default = 1),
 )
 
 # L2TP generic netlink
@@ -360,7 +361,7 @@ class Tunnel(gevent.Greenlet):
     
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
-      self.manager.netlink.tunnel_create(self.id, 1, self.socket.fileno())
+      self.manager.netlink.tunnel_create(self.id, self.peer_id, self.socket.fileno())
       session = self.create_session()
     except L2TPTunnelExists:
       self.socket.close()
@@ -648,7 +649,7 @@ class TunnelManager(object):
     del self.tunnels[tunnel.endpoint]
     self.tunnel_ids.append(tunnel.id)
   
-  def setup_tunnel(self, endpoint, uuid, cookie):
+  def setup_tunnel(self, endpoint, uuid, cookie, tunnel_id):
     """
     Sets up a new tunnel or returns the data for an existing
     tunnel.
@@ -656,6 +657,7 @@ class TunnelManager(object):
     :param endpoint: Tuple (ip, port) representing the endpoint
     :param uuid: Endpoint's UUID
     :param cookie: A random cookie used for this tunnel
+    :param tunnel_id: Peer tunnel identifier
     
     :return: A tuple (tunnel, created) where tunnel is a Tunnel
       descriptor and created is a boolean flag indicating if a new
@@ -670,6 +672,10 @@ class TunnelManager(object):
       if tunnel.uuid != uuid:
         return None, False
       
+      # Check if peer tunnel id is a match and abort if it isn't
+      if tunnel.peer_id != tunnel_id:
+        return None, False
+      
       # Update tunnel's liveness
       tunnel.keep_alive()
       return tunnel, False
@@ -679,6 +685,7 @@ class TunnelManager(object):
       tunnel = Tunnel(self)
       tunnel.uuid = uuid
       tunnel.id = self.tunnel_ids.pop(0)
+      tunnel.peer_id = tunnel_id
       tunnel.endpoint = endpoint
       tunnel.port = self.port_base + tunnel.id
       tunnel.cookie = cookie
@@ -767,7 +774,8 @@ class MessageHandler(object):
         return
       
       # First check if this tunnel has already been prepared
-      tunnel, created = self.manager.setup_tunnel(address, prepare.uuid, prepare.cookie)
+      tunnel, created = self.manager.setup_tunnel(address, prepare.uuid, prepare.cookie,
+        prepare.tunnel_id)
       if tunnel is None:
         msg.type = CONTROL_TYPE_ERROR
         msg.data = ""
