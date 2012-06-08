@@ -380,7 +380,7 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_TUNNEL_CREATE, L2TP_GENL_VERSION);
   
-  nla_put_u32(msg, L2TP_ATTR_CONN_ID, 1);
+  nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_PEER_CONN_ID, peer_tunnel_id);
   nla_put_u8(msg, L2TP_ATTR_PROTO_VERSION, 3);
   nla_put_u16(msg, L2TP_ATTR_ENCAP_TYPE, L2TP_ENCAPTYPE_UDP);
