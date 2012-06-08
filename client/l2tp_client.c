@@ -22,6 +22,7 @@
 #include <signal.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -92,9 +93,19 @@ typedef struct {
 
 static l2tp_context *main_context = NULL;
 
+time_t timer_now()
+{
+  struct timespec ts;
+  if (clock_gettime(CLOCK_MONOTONIC, &ts) < 0) {
+    syslog(LOG_ERR, "Failed to get monotonic clock, weird things may happen!");
+    return -1;
+  }
+  return ts.tv_sec;
+}
+
 int is_timeout(time_t *timer, time_t period)
 {
-  time_t now = time(NULL);
+  time_t now = timer_now();
   if (now - *timer > period) {
     *timer = now;
     return 1;
@@ -175,7 +186,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->hook = NULL;
   
   // Reset all timers
-  time_t now = time(NULL);
+  time_t now = timer_now();
   ctx->last_alive = now;
   ctx->timer_cookie = now;
   ctx->timer_tunnel = now;
@@ -212,6 +223,13 @@ int context_reinitialize(l2tp_context *ctx)
   
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
     return -1;
+  
+  // Reset relevant timers
+  time_t now = timer_now();
+  ctx->timer_cookie = now;
+  ctx->timer_tunnel = now;
+  ctx->timer_keepalive = now;
+  ctx->timer_reinit = now;
   
   return 0;
 }
@@ -252,7 +270,7 @@ void context_process_control_packet(l2tp_context *ctx)
   uint8_t payload_length = parse_u8(&buf);
   
   // Each received packet counts as a liveness indicator
-  ctx->last_alive = time(NULL);
+  ctx->last_alive = timer_now();
   
   // Check packet type
   switch (type) {
@@ -433,7 +451,7 @@ void context_process(l2tp_context *ctx)
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
       
       // Check if the tunnel is still alive
-      if (time(NULL) - ctx->last_alive > 30) {
+      if (timer_now() - ctx->last_alive > 30) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
         context_call_hook(ctx, "session.down");
         context_delete_tunnel(ctx);
