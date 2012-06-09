@@ -23,6 +23,7 @@
 #include <syslog.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -319,7 +320,9 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
     memcpy(buf, payload, len);
   
   // Send the packet
-  send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0);
+  if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
+    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+  }
 }
 
 void context_send_setup_request(l2tp_context *ctx)
