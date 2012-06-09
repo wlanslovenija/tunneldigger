@@ -325,6 +325,11 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
   if (payload)
     memcpy(buf, payload, len);
   
+  // Pad the packet to 12 bytes to avoid it being filtered by some firewalls
+  // when used over port 53
+  if (L2TP_CONTROL_SIZE + len < 12)
+    len += 12 - L2TP_CONTROL_SIZE - len;
+  
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
     syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);

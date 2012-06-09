@@ -36,7 +36,9 @@ import sys
 import traceback
 
 # Control message for our protocol; first few bits are special as we have to
-# maintain compatibility with LTPv3 in the kernel (first bit must be 1)
+# maintain compatibility with LTPv3 in the kernel (first bit must be 1); also
+# the packet must be at least 12 bytes in length, otherwise some firewalls
+# may filter it when used over port 53
 ControlMessage = cs.Struct("control",
   # Ensure that the first bit is 1 (L2TP control packet)
   cs.Const(cs.UBInt8("magic1"), 0x80),
@@ -47,7 +49,9 @@ ControlMessage = cs.Struct("control",
   # Message type
   cs.UBInt8("type"),
   # Message data (with length prefix)
-  cs.PascalString("data")
+  cs.PascalString("data"),
+  # Pad the message so it is at least 12 bytes long
+  cs.Padding(lambda ctx: max(0, 6 - len(ctx["data"]))),
 )
 
 CONTROL_TYPE_COOKIE    = 0x01
@@ -60,7 +64,7 @@ CONTROL_TYPE_KEEPALIVE = 0x05
 PrepareMessage = cs.Struct("prepare",
   cs.String("cookie", 8),
   cs.PascalString("uuid"),
-  cs.Optional(cs.UBInt16("tunnel_id"), default = 1),
+  cs.Optional(cs.UBInt16("tunnel_id")),
 )
 
 # L2TP generic netlink
@@ -354,9 +358,9 @@ class Tunnel(gevent.Greenlet):
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
     try:
-        self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
-      except gsocket.error:
-        pass
+      self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
+    except gsocket.error:
+      pass
     
     self.socket.close()
     self.remove_netfilter()
@@ -791,7 +795,7 @@ class MessageHandler(object):
       
       # First check if this tunnel has already been prepared
       tunnel, created = self.manager.setup_tunnel(address, prepare.uuid, prepare.cookie,
-        prepare.tunnel_id)
+        prepare.tunnel_id or 1)
       if tunnel is None:
         msg.type = CONTROL_TYPE_ERROR
         msg.data = ""
