@@ -450,8 +450,10 @@ void context_process(l2tp_context *ctx)
     }
     case STATE_KEEPALIVE: {
       // Send periodic keepalive messages
-      if (is_timeout(&ctx->timer_keepalive, 5))
+      if (is_timeout(&ctx->timer_keepalive, 5)) {
+        syslog(LOG_INFO, "sending keepalive");
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
+      }
       
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 30) {
