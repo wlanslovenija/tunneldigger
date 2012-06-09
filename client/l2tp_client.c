@@ -476,7 +476,7 @@ void context_process(l2tp_context *ctx)
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
       
       // Check if the tunnel is still alive
-      if (timer_now() - ctx->last_alive > 30) {
+      if (timer_now() - ctx->last_alive > 60) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
         context_close_tunnel(ctx);
       }
