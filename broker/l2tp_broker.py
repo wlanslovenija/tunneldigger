@@ -880,7 +880,7 @@ if __name__ == '__main__':
     
     # Setup the logger
     logging.basicConfig(
-      level = logging.DEBUG,
+      level = getattr(logging, config.get("log", "verbosity")),
       format = '%(asctime)s %(levelname)-8s %(message)s',
       datefmt = '%a, %d %b %Y %H:%M:%S',
       filename = config.get("log", "filename"),
