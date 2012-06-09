@@ -329,6 +329,10 @@ class Tunnel(gevent.Greenlet):
       if msg is None:
         # Message has been handled or is invalid
         continue
+      elif msg.type == CONTROL_TYPE_ERROR:
+        logger.warning("Error message received from client, tearing down tunnel %d." % self.id)
+        gevent.spawn(self.manager.close_tunnel, self)
+        return
   
   def close(self, kill = True):
     """
@@ -346,6 +350,13 @@ class Tunnel(gevent.Greenlet):
       # Invoke any down hooks
       self.manager.hook('session.down', self.id, session.id, session.name, self.endpoint[0],
         self.endpoint[1], self.port)
+    
+    # Transmit error message so the other end can tear down the tunnel
+    # immediately instead of waiting for keepalive timeout
+    try:
+        self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
+      except gsocket.error:
+        pass
     
     self.socket.close()
     self.remove_netfilter()

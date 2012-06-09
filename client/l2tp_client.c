@@ -92,6 +92,9 @@ typedef struct {
   time_t timer_reinit;
 } l2tp_context;
 
+// Forward declarations
+void context_close_tunnel(l2tp_context *ctx);
+
 static l2tp_context *main_context = NULL;
 
 time_t timer_now()
@@ -286,6 +289,9 @@ void context_process_control_packet(l2tp_context *ctx)
       if (ctx->state == STATE_GET_TUNNEL) {
         syslog(LOG_WARNING, "Received error response from broker!");
         ctx->state = STATE_GET_COOKIE;
+      } else if (ctx->state == STATE_KEEPALIVE) {
+        syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel!");
+        context_close_tunnel(ctx);
       }
       break;
     }
@@ -417,6 +423,17 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   return 0;
 }
 
+void context_close_tunnel(l2tp_context *ctx)
+{
+  // Notify the broker that the tunnel has been closed
+  context_send_packet(ctx, CONTROL_TYPE_ERROR, NULL, 0);
+  
+  // Call down hook, delete the tunnel and set state to reinit
+  context_call_hook(ctx, "session.down");
+  context_delete_tunnel(ctx);
+  ctx->state = STATE_REINIT;
+}
+
 void context_process(l2tp_context *ctx)
 {
   // Poll the file descriptor to see if anything is to be read/written
@@ -456,9 +473,7 @@ void context_process(l2tp_context *ctx)
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 30) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
-        context_call_hook(ctx, "session.down");
-        context_delete_tunnel(ctx);
-        ctx->state = STATE_REINIT;
+        context_close_tunnel(ctx);
       }
       break;
     }
@@ -487,7 +502,7 @@ void context_free(l2tp_context *ctx)
 void term_handler(int signum)
 {
   if (main_context) {
-    context_delete_tunnel(main_context);
+    context_close_tunnel(main_context);
     main_context = NULL;
   }
   
