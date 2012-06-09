@@ -296,7 +296,7 @@ class Tunnel(gevent.Greenlet):
         pass
       
       # Check if we are still alive or not; if not, kill the tunnel
-      timeout_interval = self.manager.config.getint("tunnel_timeout")
+      timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")
       if datetime.datetime.now() - self.last_alive > datetime.timedelta(seconds = timeout_interval):
         logger.warning("Session with tunnel %d to %s:%d timed out." % (self.id, self.endpoint[0],
           self.endpoint[1]))
