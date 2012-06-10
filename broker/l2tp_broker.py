@@ -345,7 +345,6 @@ class Tunnel(gevent.Greenlet):
       elif msg.type == CONTROL_TYPE_PMTUD:
         # PMTU discovery packets should simply be transmitted back
         self.socket.send(data)
-        return
   
   def close(self, kill = True):
     """
