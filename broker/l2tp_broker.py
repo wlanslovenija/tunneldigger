@@ -59,6 +59,7 @@ CONTROL_TYPE_PREPARE   = 0x02
 CONTROL_TYPE_ERROR     = 0x03
 CONTROL_TYPE_TUNNEL    = 0x04
 CONTROL_TYPE_KEEPALIVE = 0x05
+CONTROL_TYPE_PMTUD     = 0x06
 
 # Prepare message
 PrepareMessage = cs.Struct("prepare",
@@ -66,6 +67,10 @@ PrepareMessage = cs.Struct("prepare",
   cs.PascalString("uuid"),
   cs.Optional(cs.UBInt16("tunnel_id")),
 )
+
+# Socket options
+IP_MTU_DISCOVER = 10
+IP_PMTUDISC_PROBE = 3
 
 # L2TP generic netlink
 L2TP_GENL_NAME = "l2tp"
@@ -312,7 +317,7 @@ class Tunnel(gevent.Greenlet):
     while True:
       # Receive control messages from the socket
       try:
-        data, address = self.socket.recvfrom(1024)
+        data, address = self.socket.recvfrom(2048)
       except gsocket.error, e:
         if e.errno != 9:
           logger.error("Socket error %d in tunnel %d with %s:%d!" % (e.errno, 
@@ -336,6 +341,10 @@ class Tunnel(gevent.Greenlet):
       elif msg.type == CONTROL_TYPE_ERROR:
         logger.warning("Error message received from client, tearing down tunnel %d." % self.id)
         gevent.spawn(self.manager.close_tunnel, self)
+        return
+      elif msg.type == CONTROL_TYPE_PMTUD:
+        # PMTU discovery packets should simply be transmitted back
+        self.socket.send(data)
         return
   
   def close(self, kill = True):
@@ -376,8 +385,13 @@ class Tunnel(gevent.Greenlet):
       self.socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
       self.socket.bind((self.manager.address, self.port))
       self.socket.connect(self.endpoint)
+      self.socket.setsockopt(gsocket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_PROBE)
     except gsocket.error:
       raise TunnelSetupFailed
+    
+    # Setup some default values for PMTU
+    self.pmtu = 1488
+    self.probed_pmtu = 0
     
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
