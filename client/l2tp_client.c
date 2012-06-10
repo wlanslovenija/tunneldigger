@@ -32,7 +32,6 @@
 #include <sys/ioctl.h>
 
 #include <net/if.h>
-#include <netinet/in.h>
 
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
@@ -42,6 +41,9 @@
 
 #include <linux/genetlink.h>
 #include <linux/l2tp.h>
+
+// If this is not defined, build fails on OpenWrt
+#define IP_PMTUDISC_PROBE 3
 
 #define L2TP_CONTROL_SIZE 6
 
