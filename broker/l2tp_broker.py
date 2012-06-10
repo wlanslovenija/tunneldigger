@@ -376,6 +376,9 @@ class Tunnel(gevent.Greenlet):
         gevent.spawn(self.manager.close_tunnel, self)
         return
       elif msg.type == CONTROL_TYPE_PMTUD:
+        if not self.manager.config.getboolean("broker", "pmtu_discovery"):
+          continue
+        
         self.probed_pmtu.insert(0, len(data) + IPV4_HDR_OVERHEAD)
         if len(self.probed_pmtu) >= 9:
           self.probed_pmtu = self.probed_pmtu[:9]
