@@ -29,6 +29,9 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
+
+#include <net/if.h>
 
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
@@ -41,6 +44,12 @@
 
 #define L2TP_CONTROL_SIZE 6
 
+// Overhead of IP and UDP headers for measuring PMTU
+#define IPV4_HDR_OVERHEAD 42
+
+// L2TP data header overhad for calculating tunnel MTU
+#define L2TP_TUN_OVERHEAD 49
+
 #ifdef LIBNL_TINY
 #define nl_handle nl_sock
 #define nl_handle_alloc nl_socket_alloc
@@ -52,6 +61,7 @@ enum l2tp_ctrl_type {
   CONTROL_TYPE_ERROR     = 0x03,
   CONTROL_TYPE_TUNNEL    = 0x04,
   CONTROL_TYPE_KEEPALIVE = 0x05,
+  CONTROL_TYPE_PMTUD     = 0x06,
 };
 
 enum l2tp_ctrl_state {
@@ -84,6 +94,17 @@ typedef struct {
   struct nl_handle *nl_sock;
   int nl_family;
   
+  // Tunnel uptime
+  time_t tunnel_up_since;
+  
+  // PMTU probing
+  int pmtu;
+  int probed_pmtu;
+  time_t pmtu_reprobe_interval;
+  time_t timer_pmtu_reprobe;
+  time_t timer_pmtu_collect;
+  time_t timer_pmtu_xmit;
+  
   // Last keepalive and timers
   time_t last_alive;
   time_t timer_cookie;
@@ -109,6 +130,9 @@ time_t timer_now()
 
 int is_timeout(time_t *timer, time_t period)
 {
+  if (*timer < 0)
+    return 0;
+  
   time_t now = timer_now();
   if (now - *timer > period) {
     *timer = now;
@@ -184,6 +208,10 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
     goto free_and_return;
   
+  int val = IP_PMTUDISC_PROBE;
+  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
+    goto free_and_return;
+  
   ctx->uuid = uuid;
   ctx->tunnel_iface = tunnel_iface;
   ctx->tunnel_id = tunnel_id;
@@ -196,6 +224,14 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->timer_tunnel = now;
   ctx->timer_keepalive = now;
   ctx->timer_reinit = now;
+  
+  // PMTU discovery
+  ctx->pmtu = 0;
+  ctx->probed_pmtu = 0;
+  ctx->pmtu_reprobe_interval = 15;
+  ctx->timer_pmtu_reprobe = now;
+  ctx->timer_pmtu_collect = -1;
+  ctx->timer_pmtu_xmit = -1;
   
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
@@ -228,12 +264,24 @@ int context_reinitialize(l2tp_context *ctx)
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
     return -1;
   
+  int val = IP_PMTUDISC_PROBE;
+  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
+    return -1;
+  
   // Reset relevant timers
   time_t now = timer_now();
   ctx->timer_cookie = now;
   ctx->timer_tunnel = now;
   ctx->timer_keepalive = now;
   ctx->timer_reinit = now;
+  
+  // PMTU discovery
+  ctx->pmtu = 0;
+  ctx->probed_pmtu = 0;
+  ctx->pmtu_reprobe_interval = 15;
+  ctx->timer_pmtu_reprobe = now;
+  ctx->timer_pmtu_collect = -1;
+  ctx->timer_pmtu_xmit = -1;
   
   return 0;
 }
@@ -252,7 +300,7 @@ void context_call_hook(l2tp_context *ctx, const char *hook)
 
 void context_process_control_packet(l2tp_context *ctx)
 {
-  char buffer[1024];
+  char buffer[2048];
   struct sockaddr_in endpoint;
   socklen_t endpoint_len = sizeof(endpoint);
   ssize_t bytes = recvfrom(ctx->fd, &buffer, sizeof(buffer), 0, (struct sockaddr*) &endpoint,
@@ -303,19 +351,28 @@ void context_process_control_packet(l2tp_context *ctx)
         } else {
           syslog(LOG_INFO, "Tunnel successfully established.");
           context_call_hook(ctx, "session.up");
+          ctx->tunnel_up_since = timer_now();
           ctx->state = STATE_KEEPALIVE;
         }
       }
       break;
     }
     case CONTROL_TYPE_KEEPALIVE: break;
+    case CONTROL_TYPE_PMTUD: {
+      if (ctx->state == STATE_KEEPALIVE) {
+        // Process a PMTU probe
+        if (bytes + IPV4_HDR_OVERHEAD > ctx->probed_pmtu)
+          ctx->probed_pmtu = bytes + IPV4_HDR_OVERHEAD;
+      }
+      break;
+    }
     default: return;
   }
 }
 
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
 {
-  char buffer[1024];
+  char buffer[2048];
   unsigned char *buf = (unsigned char*) &buffer;
   put_u8(&buf, 0x80);
   put_u16(&buf, 0x73A7);
@@ -333,6 +390,37 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
     syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+  }
+}
+
+void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
+{
+  char buffer[2048];
+  if (size > 1500 || size < L2TP_CONTROL_SIZE)
+    return;
+  
+  unsigned char *buf = (unsigned char*) &buffer;
+  put_u8(&buf, 0x80);
+  put_u16(&buf, 0x73A7);
+  put_u8(&buf, 1);
+  put_u8(&buf, CONTROL_TYPE_PMTUD);
+  put_u8(&buf, 0);
+  
+  // Send the packet
+  if (send(ctx->fd, &buffer, size - IPV4_HDR_OVERHEAD, 0) < 0) {
+    syslog(LOG_WARNING, "Failed to send() PMTU probe packet (errno=%d)!", errno);
+  }
+}
+
+void context_pmtu_start_discovery(l2tp_context *ctx)
+{
+  size_t sizes[] = {
+    500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500
+  };
+  
+  int i;
+  for (i = 0; i < 9; i++) {
+    context_send_pmtu_probe(ctx, sizes[i]);
   }
 }
 
@@ -368,7 +456,7 @@ int context_delete_tunnel(l2tp_context *ctx)
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_SESSION_DELETE, L2TP_GENL_VERSION);
   
-  nla_put_u32(msg, L2TP_ATTR_CONN_ID, 1);
+  nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
   
   nl_send_auto_complete(ctx->nl_sock, msg);
@@ -380,7 +468,7 @@ int context_delete_tunnel(l2tp_context *ctx)
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_TUNNEL_DELETE, L2TP_GENL_VERSION);
   
-  nla_put_u32(msg, L2TP_ATTR_CONN_ID, 1);
+  nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
@@ -424,6 +512,36 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   result = nl_wait_for_ack(ctx->nl_sock);
   if (result < 0)
     return -1;
+  
+  return 0;
+}
+
+int context_session_set_mtu(l2tp_context *ctx, uint16_t mtu)
+{
+  // Update the device MTU
+  struct ifreq ifr;
+  
+  memset(&ifr, 0, sizeof(ifr));
+  strncpy(ifr.ifr_name, ctx->tunnel_iface, sizeof(ifr.ifr_name));
+  ifr.ifr_mtu = mtu;
+  if (ioctl(ctx->fd, SIOCSIFMTU, &ifr) < 0) {
+    syslog(LOG_WARNING, "Failed to set MTU to %d on device %s (errno=%d)!", (int) mtu,
+      ifr.ifr_name, errno);
+    return -1;
+  }
+  
+  // Update session parameters
+  struct nl_msg *msg = nlmsg_alloc();
+  genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
+    L2TP_CMD_SESSION_MODIFY, L2TP_GENL_VERSION);
+  
+  nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
+  nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
+  nla_put_u16(msg, L2TP_ATTR_MTU, mtu);
+  
+  nl_send_auto_complete(ctx->nl_sock, msg);
+  nlmsg_free(msg);
+  nl_wait_for_ack(ctx->nl_sock);
   
   return 0;
 }
@@ -474,6 +592,32 @@ void context_process(l2tp_context *ctx)
       // Send periodic keepalive messages
       if (is_timeout(&ctx->timer_keepalive, 5))
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
+      
+      // Send periodic PMTU probes
+      if (is_timeout(&ctx->timer_pmtu_reprobe, ctx->pmtu_reprobe_interval)) {
+        ctx->probed_pmtu = 0;
+        ctx->timer_pmtu_collect = timer_now();
+        ctx->timer_pmtu_xmit = timer_now();
+        context_pmtu_start_discovery(ctx);
+        ctx->pmtu_reprobe_interval *= 2;
+        if (ctx->pmtu_reprobe_interval > 600)
+          ctx->pmtu_reprobe_interval = 600;
+      }
+      
+      // Check if we need to collect PMTU probes
+      if (is_timeout(&ctx->timer_pmtu_collect, 5)) {
+        if (ctx->probed_pmtu > 0 && ctx->probed_pmtu != ctx->pmtu) {
+          ctx->pmtu = ctx->probed_pmtu;
+          context_session_set_mtu(ctx, ctx->pmtu - L2TP_TUN_OVERHEAD);
+        }
+        
+        ctx->probed_pmtu = 0;
+        ctx->timer_pmtu_collect = -1;
+        ctx->timer_pmtu_xmit = -1;
+      }
+      
+      if (is_timeout(&ctx->timer_pmtu_xmit, 1))
+        context_pmtu_start_discovery(ctx);
       
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 60) {

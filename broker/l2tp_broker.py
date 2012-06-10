@@ -21,6 +21,7 @@ import ConfigParser
 import conntrack
 import construct as cs
 import datetime
+import fcntl
 import gevent
 import gevent.socket as gsocket
 import gevent_subprocess
@@ -32,6 +33,7 @@ import netlink
 import os
 import repoze.lru
 import signal
+import struct
 import sys
 import traceback
 
@@ -68,6 +70,15 @@ PrepareMessage = cs.Struct("prepare",
   cs.Optional(cs.UBInt16("tunnel_id")),
 )
 
+# Overhead of IP and UDP headers for measuring PMTU
+IPV4_HDR_OVERHEAD = 42
+
+#L2TP data header overhad for calculating tunnel MTU
+L2TP_TUN_OVERHEAD = 49
+
+# Ioctls
+SIOCSIFMTU = 0x8922
+
 # Socket options
 IP_MTU_DISCOVER = 10
 IP_PMTUDISC_PROBE = 3
@@ -82,6 +93,7 @@ L2TP_CMD_TUNNEL_DELETE = 2
 L2TP_CMD_TUNNEL_GET = 4
 L2TP_CMD_SESSION_CREATE = 5
 L2TP_CMD_SESSION_DELETE = 6
+L2TP_CMD_SESSION_MODIFY = 7
 L2TP_CMD_SESSION_GET = 8
 
 # L2TP netlink command attributes
@@ -95,6 +107,7 @@ L2TP_ATTR_PEER_CONN_ID = 10
 L2TP_ATTR_SESSION_ID = 11
 L2TP_ATTR_PEER_SESSION_ID = 12
 L2TP_ATTR_FD = 23
+L2TP_ATTR_MTU = 28
 
 # L2TP encapsulation types
 L2TP_ENCAPTYPE_UDP = 0
@@ -235,6 +248,26 @@ class NetlinkInterface(object):
       logger.debug(traceback.format_exc())
       logger.warning("Unable to remove tunnel %d session %d!" % (tunnel_id, session_id))
   
+  def session_modify(self, tunnel_id, session_id, mtu):
+    """
+    Modifies an existing session.
+    
+    :param tunnel_id: Local tunnel identifier
+    :param session_id: Local session identifier
+    """
+    msg = self._create_message(L2TP_CMD_SESSION_MODIFY, [
+      netlink.U32Attr(L2TP_ATTR_CONN_ID, tunnel_id),
+      netlink.U32Attr(L2TP_ATTR_SESSION_ID, session_id),
+      netlink.U16Attr(L2TP_ATTR_MTU, mtu),
+    ])
+    msg.send(self.connection)
+    
+    try:
+      reply = self.connection.recv()
+    except OSError:
+      logger.debug(traceback.format_exc())
+      logger.warning("Unable to modify tunnel %d session %d!" % (tunnel_id, session_id))
+  
   def session_list(self):
     """
     Returns a list of session identifiers for each tunnel.
@@ -343,6 +376,18 @@ class Tunnel(gevent.Greenlet):
         gevent.spawn(self.manager.close_tunnel, self)
         return
       elif msg.type == CONTROL_TYPE_PMTUD:
+        self.probed_pmtu.insert(0, len(data) + IPV4_HDR_OVERHEAD)
+        if len(self.probed_pmtu) >= 9:
+          self.probed_pmtu = self.probed_pmtu[:9]
+          detected_pmtu = max(self.probed_pmtu)
+          if detected_pmtu != self.pmtu:
+            # Alter MTU for all sessions
+            for session in self.sessions.values():
+              self.manager.session_set_mtu(self, session, detected_pmtu - L2TP_TUN_OVERHEAD)
+            
+            logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
+            self.pmtu = detected_pmtu
+        
         # PMTU discovery packets should simply be transmitted back
         self.socket.send(data)
   
@@ -389,8 +434,8 @@ class Tunnel(gevent.Greenlet):
       raise TunnelSetupFailed
     
     # Setup some default values for PMTU
-    self.pmtu = 1488
-    self.probed_pmtu = 0
+    self.pmtu = 0
+    self.probed_pmtu = []
     
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
@@ -659,6 +704,20 @@ class TunnelManager(object):
       return False
     
     return vcookie == cookie
+  
+  def session_set_mtu(self, tunnel, session, mtu):
+    """
+    Sets MTU values for a specific device.
+    
+    :param tunnel: Tunnel instance
+    :param session: Session instance
+    :param mtu: Wanted MTU
+    """
+    ifreq = (session.name + '\0' * 16)[:16]
+    data = struct.pack("16si", ifreq, mtu)
+    fcntl.ioctl(tunnel.socket, SIOCSIFMTU, data)
+    
+    self.netlink.session_modify(tunnel.id, session.id, mtu)
   
   def close_tunnel(self, tunnel):
     """
