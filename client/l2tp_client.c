@@ -32,6 +32,7 @@
 #include <sys/ioctl.h>
 
 #include <net/if.h>
+#include <netinet/in.h>
 
 #include <netlink/netlink.h>
 #include <netlink/genl/genl.h>
