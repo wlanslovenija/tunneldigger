@@ -737,6 +737,7 @@ int main(int argc, char **argv)
   main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface, tunnel_id);
   main_context->hook = hook;
   if (!main_context) {
+    syslog(LOG_ERR, "Unable to initialize L2TP context!");
     fprintf(stderr, "ERROR: Unable to initialize L2TP context!\n");
     return 1;
   }
