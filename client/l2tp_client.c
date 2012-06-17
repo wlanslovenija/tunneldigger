@@ -734,13 +734,28 @@ int main(int argc, char **argv)
     return 1;
   }
   
-  main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface, tunnel_id);
-  main_context->hook = hook;
-  if (!main_context) {
-    syslog(LOG_ERR, "Unable to initialize L2TP context!");
-    fprintf(stderr, "ERROR: Unable to initialize L2TP context!\n");
-    return 1;
+  // Attempt to initialize the L2TP context. This might fail because the network is still
+  // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
+  // and then abort.
+  int tries = 0;
+  for (;;) {
+    main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface, tunnel_id);
+    if (!main_context) {
+      if (++tries >= 120) {
+        syslog(LOG_ERR, "Unable to initialize L2TP context! Aborting.");
+        return 1;
+      }
+      
+      syslog(LOG_ERR, "Unable to initialize L2TP context! Retrying in 5 seconds...");
+      sleep(5);
+      continue;
+    }
+    
+    // Context successfully initialized
+    break;
   }
+  
+  main_context->hook = hook;
   
   for (;;) {
     context_process(main_context);
