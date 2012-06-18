@@ -293,15 +293,17 @@ class TunnelSetupFailed(Exception):
   pass
 
 class Tunnel(gevent.Greenlet):
-  def __init__(self, manager):
+  def __init__(self, manager, port):
     """
     Class constructor.
     
+    :param port: External port
     :param manager: An instance of TunnelManager
     """
     super(Tunnel, self).__init__()
     self.manager = manager
-    self.handler = MessageHandler(manager, self)
+    self.handler = MessageHandler(manager, port, self)
+    self.external_port = port
     self.sessions = {}
     self.next_session_id = 1
     self.keep_alive()
@@ -492,7 +494,7 @@ class Tunnel(gevent.Greenlet):
       source = self.endpoint[0],
       destination = self.manager.address,
       matches = [
-        netfilter.rule.Match('udp', '--sport %d --dport %d' % (self.endpoint[1], self.manager.port)),
+        netfilter.rule.Match('udp', '--sport %d --dport %d' % (self.endpoint[1], self.external_port)),
       ],
       jump = netfilter.rule.Target('DNAT', '--to %s:%d' % (self.manager.address, self.port))
     )
@@ -505,7 +507,7 @@ class Tunnel(gevent.Greenlet):
       matches = [
         netfilter.rule.Match('udp', '--sport %d --dport %d' % (self.port, self.endpoint[1])),
       ],
-      jump = netfilter.rule.Target('SNAT', '--to %s:%d' % (self.manager.address, self.manager.port))
+      jump = netfilter.rule.Target('SNAT', '--to %s:%d' % (self.manager.address, self.external_port))
     )
     
     try:
@@ -522,9 +524,9 @@ class Tunnel(gevent.Greenlet):
     """
     try:
       self.manager.conntrack.kill(conntrack.IPPROTO_UDP, self.endpoint[0], self.manager.address,
-        self.endpoint[1], self.manager.port)
+        self.endpoint[1], self.external_port)
       self.manager.conntrack.kill(conntrack.IPPROTO_UDP, self.manager.address, self.endpoint[0],
-        self.manager.port, self.endpoint[1])
+        self.external_port, self.endpoint[1])
     except conntrack.ConntrackError:
       pass
 
@@ -565,7 +567,8 @@ class TunnelManager(object):
     self.port_base = config.getint('broker', 'port_base')
     self.interface = config.get('broker', 'interface')
     self.address = config.get('broker', 'address')
-    self.port = config.getint('broker', 'port')
+    self.ports = [int(x) for x in config.get('broker', 'port').split(',')]
+    self.closed = False
     self.setup_tunnels()
     self.setup_netfilter()
     self.setup_hooks()
@@ -574,7 +577,7 @@ class TunnelManager(object):
     logger.info("  Maximum number of tunnels: %d" % max_tunnels)
     logger.info("  Interface: %s" % self.interface)
     logger.info("  Address: %s" % self.address)
-    logger.info("  Port: %d" % self.port)
+    logger.info("  Ports: %s" % self.ports)
     logger.info("Tunnel manager initialized.")
   
   def setup_hooks(self):
@@ -665,6 +668,9 @@ class TunnelManager(object):
     """
     Closes all tunnels and performs the necessary cleanup.
     """
+    if self.closed:
+      return
+    
     logger.info("Closing the tunnel manager...")
     
     # Ensure that all tunnels get closed
@@ -680,6 +686,7 @@ class TunnelManager(object):
         continue
     
     self.restore_netfilter()
+    self.closed = True
   
   def issue_cookie(self, endpoint):
     """
@@ -744,11 +751,12 @@ class TunnelManager(object):
     del self.tunnels[tunnel.endpoint]
     self.tunnel_ids.append(tunnel.id)
   
-  def setup_tunnel(self, endpoint, uuid, cookie, tunnel_id):
+  def setup_tunnel(self, port, endpoint, uuid, cookie, tunnel_id):
     """
     Sets up a new tunnel or returns the data for an existing
     tunnel.
     
+    :param port: External port the tunnel has connected to
     :param endpoint: Tuple (ip, port) representing the endpoint
     :param uuid: Endpoint's UUID
     :param cookie: A random cookie used for this tunnel
@@ -777,7 +785,7 @@ class TunnelManager(object):
     
     # Tunnel has not yet been created, create a new tunnel
     try:
-      tunnel = Tunnel(self)
+      tunnel = Tunnel(self, port)
       tunnel.uuid = uuid
       tunnel.id = self.tunnel_ids.pop(0)
       tunnel.peer_id = tunnel_id
@@ -806,7 +814,7 @@ class TunnelManager(object):
     return tunnel, True
 
 class MessageHandler(object):
-  def __init__(self, manager, tunnel = None):
+  def __init__(self, manager, port, tunnel = None):
     """
     Class constructor.
     
@@ -869,8 +877,8 @@ class MessageHandler(object):
         return
       
       # First check if this tunnel has already been prepared
-      tunnel, created = self.manager.setup_tunnel(address, prepare.uuid, prepare.cookie,
-        prepare.tunnel_id or 1)
+      tunnel, created = self.manager.setup_tunnel(self.port, address, prepare.uuid,
+        prepare.cookie, prepare.tunnel_id or 1)
       if tunnel is None:
         msg.type = CONTROL_TYPE_ERROR
         msg.data = ""
@@ -893,27 +901,17 @@ class MessageHandler(object):
       return msg
 
 class BaseControl(gevent.Greenlet):
-  def __init__(self, config):
+  def __init__(self, manager, port):
     """
     Class constructor.
     
-    :param config: Configuration object
+    :param manager: Tunnel manager instance
+    :param port: External port
     """
     super(BaseControl, self).__init__()
-    self.manager = TunnelManager(config)
-    self.handler = MessageHandler(self.manager)
-    self.closed = False
-  
-  def close(self):
-    """
-    Terminates this instance.
-    """
-    if self.closed:
-      return
-    
-    self.closed = True
-    self.manager.close()
-    self.kill()
+    self.manager = manager
+    self.port = port
+    self.handler = MessageHandler(manager, port)
   
   def _run(self):
     """
@@ -923,7 +921,7 @@ class BaseControl(gevent.Greenlet):
     # Setup the base control socket that listens for initial incoming
     # tunnel setup requests
     socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
-    socket.bind((self.manager.address, self.manager.port))
+    socket.bind((self.manager.address, self.port))
     
     while True:
       # Wait that some message becomes available from the socket
@@ -964,20 +962,33 @@ if __name__ == '__main__':
     logger = logging.getLogger("tunneldigger.broker")
     
     # Setup the base control server
-    base = BaseControl(config)
-    base.start()
-    gevent.signal(signal.SIGTERM, base.close)
-    gevent.signal(signal.SIGINT, base.close)
+    manager = TunnelManager(config)
+    bases = []
+    for port in manager.ports:
+      base = BaseControl(manager, port)
+      base.start()
+      bases.append(base)
+    
+    def shutdown_broker():
+      for base in bases:
+        base.kill()
+      
+      manager.close()
+    
+    gevent.signal(signal.SIGTERM, shutdown_broker)
+    gevent.signal(signal.SIGINT, shutdown_broker)
     
     try:
-      base.join()
+      for base in bases:
+        base.join()
     except KeyboardInterrupt:
       # SIGINT has been handled and this will cause the application to
       # shutdown, we wait for this to happen and ignore any further
       # interruptions
       while True:
         try:
-          base.join()
+          for base in bases:
+            base.join()
           break
         except KeyboardInterrupt:
           pass
