@@ -30,7 +30,7 @@ from ctypes import *
 from threading import Thread, Lock
 from socket import AF_INET, AF_INET6, IPPROTO_TCP, IPPROTO_UDP
 
-nfct = CDLL('libnetfilter_conntrack.so')
+nfct = CDLL('libnetfilter_conntrack.so.3')
 libc = CDLL('libc.so.6')
 
 
