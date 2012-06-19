@@ -675,6 +675,7 @@ class TunnelManager(object):
     if self.closed:
       return
     
+    self.closed = True
     logger.info("Closing the tunnel manager...")
     
     # Ensure that all tunnels get closed
@@ -690,7 +691,6 @@ class TunnelManager(object):
         continue
     
     self.restore_netfilter()
-    self.closed = True
   
   def issue_cookie(self, endpoint):
     """
@@ -976,10 +976,12 @@ if __name__ == '__main__':
       bases.append(base)
     
     def shutdown_broker():
-      for base in bases:
-        base.kill()
+      if manager.closed:
+        return
       
       manager.close()
+      for base in bases:
+        base.kill()
     
     gevent.signal(signal.SIGTERM, shutdown_broker)
     gevent.signal(signal.SIGINT, shutdown_broker)
