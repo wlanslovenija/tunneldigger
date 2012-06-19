@@ -4,10 +4,12 @@ INTERFACE="$3"
 OLD_MTU="$4"
 NEW_MTU="$5"
 
+. scripts/bridge_functions.sh
+
 # Remove interface from old bridge
 brctl delif digger${OLD_MTU} $INTERFACE
 
 # Add interface to new bridge
-brctl addbr digger${NEW_MTU} 2>/dev/null
+ensure_bridge digger${NEW_MTU}
 brctl addif digger${NEW_MTU} $INTERFACE
 
