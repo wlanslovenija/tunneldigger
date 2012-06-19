@@ -384,11 +384,15 @@ class Tunnel(gevent.Greenlet):
         self.probed_pmtu.insert(0, len(data) + IPV4_HDR_OVERHEAD)
         if len(self.probed_pmtu) >= 9:
           self.probed_pmtu = self.probed_pmtu[:9]
-          detected_pmtu = max(self.probed_pmtu)
+          detected_pmtu = max(self.probed_pmtu) - L2TP_TUN_OVERHEAD
           if detected_pmtu != self.pmtu:
             # Alter MTU for all sessions
             for session in self.sessions.values():
-              self.manager.session_set_mtu(self, session, detected_pmtu - L2TP_TUN_OVERHEAD)
+              self.manager.session_set_mtu(self, session, detected_pmtu)
+              
+              # Invoke MTU change hook for each session
+              self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
+                detected_pmtu)
             
             logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
             self.pmtu = detected_pmtu
@@ -404,13 +408,13 @@ class Tunnel(gevent.Greenlet):
     
     for session in self.sessions.values():
       # Invoke any pre-down hooks
-      self.manager.hook('session.pre-down', self.id, session.id, session.name, self.endpoint[0],
+      self.manager.hook('session.pre-down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
         self.endpoint[1], self.port)
       
       self.manager.netlink.session_delete(self.id, session.id)
       
       # Invoke any down hooks
-      self.manager.hook('session.down', self.id, session.id, session.name, self.endpoint[0],
+      self.manager.hook('session.down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
         self.endpoint[1], self.port)
     
     # Transmit error message so the other end can tear down the tunnel
@@ -439,7 +443,7 @@ class Tunnel(gevent.Greenlet):
       raise TunnelSetupFailed
     
     # Setup some default values for PMTU
-    self.pmtu = 0
+    self.pmtu = 1488
     self.probed_pmtu = []
     
     # Make the socket an encapsulation socket by asking the kernel to do so
@@ -461,8 +465,8 @@ class Tunnel(gevent.Greenlet):
     otherwise port translation will not work and the tunnel will be dead.
     """
     for session in self.sessions.values():
-      self.manager.hook('session.up', self.id, session.id, session.name, self.endpoint[0],
-        self.endpoint[1], self.port)
+      self.manager.hook('session.up', self.id, session.id, session.name, self.pmtu,
+        self.endpoint[0], self.endpoint[1], self.port)
   
   def create_session(self):
     """
@@ -819,9 +823,11 @@ class MessageHandler(object):
     Class constructor.
     
     :param manager: TunnelManager instance
+    :param port: External port used to receive messages
     :param tunnel: Optional Tunnel instance
     """
     self.manager = manager
+    self.port = port
     self.tunnel = tunnel
   
   def send_message(self, socket, type, data = ""):
