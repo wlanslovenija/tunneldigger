@@ -62,6 +62,7 @@ CONTROL_TYPE_ERROR     = 0x03
 CONTROL_TYPE_TUNNEL    = 0x04
 CONTROL_TYPE_KEEPALIVE = 0x05
 CONTROL_TYPE_PMTUD     = 0x06
+CONTROL_TYPE_PMTUD_ACK = 0x07
 
 # Prepare message
 PrepareMessage = cs.Struct("prepare",
@@ -71,10 +72,13 @@ PrepareMessage = cs.Struct("prepare",
 )
 
 # Overhead of IP and UDP headers for measuring PMTU
-IPV4_HDR_OVERHEAD = 42
+IPV4_HDR_OVERHEAD = 28
 
-#L2TP data header overhad for calculating tunnel MTU
+# L2TP data header overhad for calculating tunnel MTU
 L2TP_TUN_OVERHEAD = 49
+
+# Control header overhead for a zero-length payload
+L2TP_CONTROL_SIZE = 6
 
 # Ioctls
 SIOCSIFMTU = 0x8922
@@ -321,8 +325,9 @@ class Tunnel(gevent.Greenlet):
       self.socket.close()
       raise
     
-    # Spawn periodic keepalive transmitter
+    # Spawn periodic keepalive transmitter and PMTUD
     self.keep_alive_do = gevent.spawn(self._keep_alive_do)
+    self.pmtu_probe_do = gevent.spawn(self._pmtu_probe_do)
   
   def _keep_alive_do(self):
     """
@@ -345,6 +350,58 @@ class Tunnel(gevent.Greenlet):
       
       gevent.sleep(5.0)
   
+  def _pmtu_probe_do(self):
+    """
+    Periodically probes PMTU.
+    """
+    if not self.manager.config.getboolean("broker", "pmtu_discovery"):
+      return
+    
+    probe_interval = 15
+    while True:
+      gevent.sleep(probe_interval)
+      
+      # Reset measured PMTU
+      self.probed_pmtu = 0
+      
+      # Transmit PMTU probes of different sizes multiple times
+      for _ in xrange(4):
+        for size in [500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500]:
+          try:
+            msg = ControlMessage.build(cs.Container(
+              magic1 = 0x80,
+              magic2 = 0x73A7,
+              version = 1,
+              type = CONTROL_TYPE_PMTUD,
+              data = ""
+            ))
+            # We need to subtract 6 because ControlMessage gets auto-padded to 12 bytes
+            msg += '\x00' * (size - IPV4_HDR_OVERHEAD - L2TP_CONTROL_SIZE - 6)
+            
+            self.socket.send(msg)
+          except gsocket.error:
+            pass
+        
+        gevent.sleep(1)
+      
+      # Collect all acknowledgements
+      gevent.sleep(1)
+      detected_pmtu = self.probed_pmtu - L2TP_TUN_OVERHEAD
+      if detected_pmtu != self.pmtu:
+        # Alter MTU for all sessions
+        for session in self.sessions.values():
+          self.manager.session_set_mtu(self, session, detected_pmtu)
+          
+          # Invoke MTU change hook for each session
+          self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
+            detected_pmtu)
+        
+        logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
+        self.pmtu = detected_pmtu
+      
+      # Increase probe interval until it reaches 10 minutes
+      probe_interval = min(600, probe_interval * 2)
+  
   def _run(self):
     """
     Starts listening for control messages via the tunnel socket.
@@ -355,8 +412,13 @@ class Tunnel(gevent.Greenlet):
         data, address = self.socket.recvfrom(2048)
       except gsocket.error, e:
         if e.errno != 9:
-          logger.error("Socket error %d in tunnel %d with %s:%d!" % (e.errno, 
+          logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror, 
             self.id, self.endpoint[0], self.endpoint[1]))
+          
+          if e.errno == 90:
+            # Ignore EMSGSIZE errors as they might ocurr due to inconsistent
+            # MTU sizes on both ends of the tunnel
+            continue
         else:
           logger.warning("Closing control channel for tunnel %d." % self.id)
         
@@ -381,30 +443,22 @@ class Tunnel(gevent.Greenlet):
         if not self.manager.config.getboolean("broker", "pmtu_discovery"):
           continue
         
-        self.probed_pmtu.insert(0, len(data) + IPV4_HDR_OVERHEAD)
-        if len(self.probed_pmtu) >= 9:
-          self.probed_pmtu = self.probed_pmtu[:9]
-          detected_pmtu = max(self.probed_pmtu) - L2TP_TUN_OVERHEAD
-          if detected_pmtu != self.pmtu:
-            # Alter MTU for all sessions
-            for session in self.sessions.values():
-              self.manager.session_set_mtu(self, session, detected_pmtu)
-              
-              # Invoke MTU change hook for each session
-              self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
-                detected_pmtu)
-            
-            logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
-            self.pmtu = detected_pmtu
+        # Reply with ACK packet
+        self.handler.send_message(self.socket, CONTROL_TYPE_PMTUD_ACK,
+          cs.UBInt16("size").build(len(data)))
+      elif msg.type == CONTROL_TYPE_PMTUD_ACK:
+        # Decode ACK packet and extract size
+        psize = cs.UBInt16("size").parse(msg.data) + IPV4_HDR_OVERHEAD
         
-        # PMTU discovery packets should simply be transmitted back
-        self.socket.send(data)
+        if psize > self.probed_pmtu:
+          self.probed_pmtu = psize
   
   def close(self, kill = True):
     """
     Close the tunnel and remove all mappings.
     """
     self.keep_alive_do.kill()
+    self.pmtu_probe_do.kill()
     
     for session in self.sessions.values():
       # Invoke any pre-down hooks
@@ -444,7 +498,7 @@ class Tunnel(gevent.Greenlet):
     
     # Setup some default values for PMTU
     self.pmtu = 1488
-    self.probed_pmtu = []
+    self.probed_pmtu = 0
     
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:

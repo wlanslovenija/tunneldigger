@@ -48,7 +48,7 @@
 #define L2TP_CONTROL_SIZE 6
 
 // Overhead of IP and UDP headers for measuring PMTU
-#define IPV4_HDR_OVERHEAD 42
+#define IPV4_HDR_OVERHEAD 28
 
 // L2TP data header overhad for calculating tunnel MTU
 #define L2TP_TUN_OVERHEAD 49
@@ -65,6 +65,7 @@ enum l2tp_ctrl_type {
   CONTROL_TYPE_TUNNEL    = 0x04,
   CONTROL_TYPE_KEEPALIVE = 0x05,
   CONTROL_TYPE_PMTUD     = 0x06,
+  CONTROL_TYPE_PMTUD_ACK = 0x07,
 };
 
 enum l2tp_ctrl_state {
@@ -118,6 +119,7 @@ typedef struct {
 
 // Forward declarations
 void context_close_tunnel(l2tp_context *ctx);
+void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 
 static l2tp_context *main_context = NULL;
 
@@ -363,9 +365,20 @@ void context_process_control_packet(l2tp_context *ctx)
     case CONTROL_TYPE_KEEPALIVE: break;
     case CONTROL_TYPE_PMTUD: {
       if (ctx->state == STATE_KEEPALIVE) {
+        // Send back an acknowledgement packet with proper size
+        char buffer[16];
+        unsigned char *buf = (unsigned char*) &buffer;
+        put_u16(&buf, bytes);
+        context_send_packet(ctx, CONTROL_TYPE_PMTUD_ACK, (char*) &buffer, 2);
+      }
+      break;
+    }
+    case CONTROL_TYPE_PMTUD_ACK: {
+      if (ctx->state == STATE_KEEPALIVE) {
         // Process a PMTU probe
-        if (bytes + IPV4_HDR_OVERHEAD > ctx->probed_pmtu)
-          ctx->probed_pmtu = bytes + IPV4_HDR_OVERHEAD;
+        uint16_t psize = parse_u16(&buf) + IPV4_HDR_OVERHEAD;
+        if (psize > ctx->probed_pmtu)
+          ctx->probed_pmtu = psize;
       }
       break;
     }
