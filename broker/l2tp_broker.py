@@ -205,7 +205,7 @@ class NetlinkInterface(object):
     msg.send(self.connection)
     
     for tunnel in genetlink.GeNlMessage.recv(self.connection, multiple = True):
-      tunnels.append(session.attrs[L2TP_ATTR_CONN_ID].u32()) 
+      tunnels.append(tunnel.attrs[L2TP_ATTR_CONN_ID].u32())
     
     return tunnels
   
