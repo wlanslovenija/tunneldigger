@@ -570,8 +570,8 @@ class Tunnel(gevent.Greenlet):
     
     try:
       nat = netfilter.table.Table('nat')
-      nat.append_rule('L2TP_PREROUTING', self.prerouting_rule)
-      nat.append_rule('L2TP_POSTROUTING', self.postrouting_rule)
+      nat.append_rule('L2TP_PREROUTING_%s' % self.manager.namespace, self.prerouting_rule)
+      nat.append_rule('L2TP_POSTROUTING_%s' % self.manager.namespace, self.postrouting_rule)
     except netfilter.table.IptablesError:
       raise TunnelSetupFailed
 
@@ -594,8 +594,8 @@ class Tunnel(gevent.Greenlet):
     """
     try:
       nat = netfilter.table.Table('nat')
-      nat.delete_rule('L2TP_PREROUTING', self.prerouting_rule)
-      nat.delete_rule('L2TP_POSTROUTING', self.postrouting_rule)
+      nat.delete_rule('L2TP_PREROUTING_%s' % self.manager.namespace, self.prerouting_rule)
+      nat.delete_rule('L2TP_POSTROUTING_%s' % self.manager.namespace, self.postrouting_rule)
     except netfilter.table.IptablesError:
       pass
   
@@ -626,6 +626,7 @@ class TunnelManager(object):
     self.interface = config.get('broker', 'interface')
     self.address = config.get('broker', 'address')
     self.ports = [int(x) for x in config.get('broker', 'port').split(',')]
+    self.namespace = config.get('broker', 'namespace')
     self.closed = False
     self.setup_tunnels()
     self.setup_netfilter()
@@ -636,6 +637,7 @@ class TunnelManager(object):
     logger.info("  Interface: %s" % self.interface)
     logger.info("  Address: %s" % self.address)
     logger.info("  Ports: %s" % self.ports)
+    logger.info("  Namespace: %s" % self.namespace)
     logger.info("Tunnel manager initialized.")
   
   def setup_hooks(self):
@@ -678,24 +680,26 @@ class TunnelManager(object):
     Sets up netfilter rules so new packets to the same port are redirected
     into the per-tunnel socket.
     """
+    prerouting_chain = "L2TP_PREROUTING_%s" % self.namespace
+    postrouting_chain = "L2TP_POSTROUTING_%s" % self.namespace
     nat = netfilter.table.Table('nat')
-    self.rule_prerouting_jmp = netfilter.rule.Rule(jump = 'L2TP_PREROUTING')
-    self.rule_postrouting_jmp = netfilter.rule.Rule(jump = 'L2TP_POSTROUTING')
+    self.rule_prerouting_jmp = netfilter.rule.Rule(jump = prerouting_chain)
+    self.rule_postrouting_jmp = netfilter.rule.Rule(jump = postrouting_chain)
     
     try:
-      nat.flush_chain('L2TP_PREROUTING')
-      nat.delete_chain('L2TP_PREROUTING')
+      nat.flush_chain(prerouting_chain)
+      nat.delete_chain(prerouting_chain)
     except netfilter.table.IptablesError:
       pass
     
     try:
-      nat.flush_chain('L2TP_POSTROUTING')
-      nat.delete_chain('L2TP_POSTROUTING')
+      nat.flush_chain(postrouting_chain)
+      nat.delete_chain(postrouting_chain)
     except netfilter.table.IptablesError:
       pass
     
-    nat.create_chain('L2TP_PREROUTING')
-    nat.create_chain('L2TP_POSTROUTING')
+    nat.create_chain(prerouting_chain)
+    nat.create_chain(postrouting_chain)
     try:
       nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
     except netfilter.table.IptablesError:
@@ -719,8 +723,8 @@ class TunnelManager(object):
     nat = netfilter.table.Table('nat')
     nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
     nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
-    nat.delete_chain('L2TP_PREROUTING')
-    nat.delete_chain('L2TP_POSTROUTING')
+    nat.delete_chain('L2TP_PREROUTING_%s' % self.namespace)
+    nat.delete_chain('L2TP_POSTROUTING_%s' % self.namespace)
   
   def close(self):
     """
