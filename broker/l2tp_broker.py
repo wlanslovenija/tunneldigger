@@ -335,10 +335,7 @@ class Tunnel(gevent.Greenlet):
     if the tunnel has timed out due to inactivity.
     """
     while True:
-      try:
-        self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE)
-      except gsocket.error:
-        pass
+      self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE)
       
       # Check if we are still alive or not; if not, kill the tunnel
       timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")
@@ -411,16 +408,15 @@ class Tunnel(gevent.Greenlet):
       try:
         data, address = self.socket.recvfrom(2048)
       except gsocket.error, e:
-        if e.errno != 9:
+        if e.errno == 90:
+          # Ignore EMSGSIZE errors as they ocurr when performing PMTU discovery
+          # and remote nodes send us ICMP fragmentation needed messages
+          continue 
+        elif e.errno != 9:
           logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror, 
             self.id, self.endpoint[0], self.endpoint[1]))
-          
-          if e.errno == 90:
-            # Ignore EMSGSIZE errors as they might ocurr due to inconsistent
-            # MTU sizes on both ends of the tunnel
-            continue
         else:
-          logger.warning("Closing control channel for tunnel %d." % self.id)
+          logger.info("Closing control channel for tunnel %d." % self.id)
         
         return
       
@@ -473,10 +469,7 @@ class Tunnel(gevent.Greenlet):
     
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
-    try:
-      self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
-    except gsocket.error:
-      pass
+    self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
     
     self.socket.close()
     self.remove_netfilter()
@@ -893,21 +886,30 @@ class MessageHandler(object):
     self.port = port
     self.tunnel = tunnel
   
-  def send_message(self, socket, type, data = ""):
+  def send_message(self, socket, type, data = "", address = None):
     """
     Builds and sends a control message.
     
     :param socket: Socket to use for outgoing messages
     :param type: Message type
     :param data: Optional payload
+    :param address: Optional destination address
     """
-    socket.send(ControlMessage.build(cs.Container(
+    msg = ControlMessage.build(cs.Container(
       magic1 = 0x80,
       magic2 = 0x73A7,
       version = 1,
       type = type,
       data = data
-    )))
+    ))
+    
+    try:
+      if address is not None:
+        socket.sendto(msg, address)
+      else:
+        socket.send(msg)
+    except gsocket.error, e:
+      logger.error("Failed to send() control message: %s (%d)" % (e.strerror, e.errno))
   
   def handle(self, socket, data, address):
     """
@@ -932,8 +934,8 @@ class MessageHandler(object):
         return
       
       # Respond with a cookie
-      msg.data = self.manager.issue_cookie(address)
-      socket.sendto(ControlMessage.build(msg), address)
+      self.send_message(socket, CONTROL_TYPE_COOKIE, self.manager.issue_cookie(address),
+        address)
     elif msg.type == CONTROL_TYPE_PREPARE:
       # Parse the prepare message
       try:
@@ -949,14 +951,11 @@ class MessageHandler(object):
       tunnel, created = self.manager.setup_tunnel(self.port, address, prepare.uuid,
         prepare.cookie, prepare.tunnel_id or 1)
       if tunnel is None:
-        msg.type = CONTROL_TYPE_ERROR
-        msg.data = ""
-        socket.sendto(ControlMessage.build(msg), address)
+        self.send_message(socket, CONTROL_TYPE_ERROR, address = address)
         return
       
-      msg.type = CONTROL_TYPE_TUNNEL
-      msg.data = cs.UBInt32("tunnel_id").build(tunnel.id)
-      socket.sendto(ControlMessage.build(msg), address)
+      self.send_message(socket, CONTROL_TYPE_TUNNEL, cs.UBInt32("tunnel_id").build(tunnel.id),
+        address)
       
       if self.tunnel is None and created:
         # Clear conntrack tables so all new packets are evaluated against the
