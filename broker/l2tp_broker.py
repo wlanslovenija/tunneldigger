@@ -787,9 +787,12 @@ class TunnelManager(object):
     :param session: Session instance
     :param mtu: Wanted MTU
     """
-    ifreq = (session.name + '\0' * 16)[:16]
-    data = struct.pack("16si", ifreq, mtu)
-    fcntl.ioctl(tunnel.socket, SIOCSIFMTU, data)
+    try:
+      ifreq = (session.name + '\0' * 16)[:16]
+      data = struct.pack("16si", ifreq, mtu)
+      fcntl.ioctl(tunnel.socket, SIOCSIFMTU, data)
+    except IOError:
+      logger.warning("Failed to set MTU for tunnel %d! Is the interface down?" % tunnel.id)
     
     self.netlink.session_modify(tunnel.id, session.id, mtu)
   
