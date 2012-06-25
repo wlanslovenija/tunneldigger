@@ -384,7 +384,7 @@ class Tunnel(gevent.Greenlet):
       # Collect all acknowledgements
       gevent.sleep(1)
       detected_pmtu = self.probed_pmtu - L2TP_TUN_OVERHEAD
-      if detected_pmtu != self.pmtu:
+      if detected_pmtu > 0 and detected_pmtu != self.pmtu:
         # Alter MTU for all sessions
         for session in self.sessions.values():
           self.manager.session_set_mtu(self, session, detected_pmtu)
