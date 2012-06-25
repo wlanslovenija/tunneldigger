@@ -668,12 +668,14 @@ class TunnelManager(object):
     Cleans up any stale tunnels that exist.
     """
     for tunnel_id, session_id in self.netlink.session_list():
-      logger.warning("Removing existing tunnel %d session %d." % (tunnel_id, session_id))
-      self.netlink.session_delete(tunnel_id, session_id)
+      if tunnel_id in self.tunnel_ids:
+        logger.warning("Removing existing tunnel %d session %d." % (tunnel_id, session_id))
+        self.netlink.session_delete(tunnel_id, session_id)
     
     for tunnel_id in self.netlink.tunnel_list():
-      logger.warning("Removing existing tunnel %d." % tunnel_id)
-      self.netlink.tunnel_delete(tunnel_id)
+      if tunnel_id in self.tunnel_ids:
+        logger.warning("Removing existing tunnel %d." % tunnel_id)
+        self.netlink.tunnel_delete(tunnel_id)
   
   def setup_netfilter(self):
     """
