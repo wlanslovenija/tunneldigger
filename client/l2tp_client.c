@@ -50,8 +50,17 @@
 // Overhead of IP and UDP headers for measuring PMTU
 #define IPV4_HDR_OVERHEAD 28
 
-// L2TP data header overhad for calculating tunnel MTU
-#define L2TP_TUN_OVERHEAD 49
+// L2TP data header overhead for calculating tunnel MTU; takes
+// the following headers into account:
+//
+//   20 bytes (IP header)
+//    8 bytes (UDP header)
+//    4 bytes (L2TPv3 Session ID)
+//    4 bytes (L2TPv3 Cookie)
+//    4 bytes (L2TPv3 Pseudowire CE)
+//   14 bytes (Ethernet)
+//
+#define L2TP_TUN_OVERHEAD 54
 
 #ifdef LIBNL_TINY
 #define nl_handle nl_sock
