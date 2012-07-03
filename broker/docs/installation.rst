@@ -4,6 +4,18 @@ Installation
 The installation of tunneldigger is pretty straightforward and is described
 in the following sections.
 
+Getting the Source
+------------------
+
+Tunneldigger source can be retrieved from its Github repository by running
+the following command::
+
+    git clone git://github.com/wlanslovenija/tunneldigger.git
+
+This will give you a ``tunneldigger`` directory which contains the broker
+and the client in separate directories. Server installations only need
+the broker.
+
 Prerequisites
 -------------
 
@@ -21,33 +33,29 @@ that all tunnels operate over the same external port.
 The system should be configured to load these modules at boot which is usually done
 by listing the modules in ``/etc/modules``.
 
-There are also some Python modules required, all of them are listed in the 
-``requirements.txt`` file that is included in the tunneldigger distribution. You
-can install all of them by the use of ``pip`` as follows::
-
-    sudo pip install -r requirements.txt
-
 Also the following Debian packages are required:
 
 * iproute
 * bridge-utils
 * libnetfilter-conntrack3
+* python-dev
+* libevent-dev
 
-You can install them simply by running::
+If you would like to use the already supplied hook scripts to setup the network
+interfaces, you also need the following packages:
 
-    sudo apt-get install iproute bridge-utils libnetfilter-conntrack3
+* ebtables
 
-Getting the Source
-------------------
+You can install all of the above simply by running::
 
-Tunneldigger source can be retrieved from its Github repository by running
-the following command::
+    sudo apt-get install iproute bridge-utils libnetfilter-conntrack3 python-dev libevent-dev ebtables
 
-    git clone git://github.com/wlanslovenija/tunneldigger.git
+There are also some Python modules required, all of them are listed in the 
+``requirements.txt`` file that is included in the tunneldigger distribution. You
+can install all of them (after you have already installed the above Debian packages) with
+the use of ``pip`` as follows::
 
-This will give you a ``tunneldigger`` directory which contains the broker
-and the client in separate directories. Server installations only need
-the broker.
+    sudo pip install -r requirements.txt
 
 Configuration
 -------------
@@ -73,11 +81,11 @@ They also configure a default IP address to newly created tunnels, set up
 ``ebtables`` to isolate bridge ports and update the routing policy via ``ip rule``
 so traffic from these interfaces is routed via the ``mesh`` routing table.
 
-You will probably have some different network configuration and so can modify
-the scripts as you wish.
+You will probably have some different network configuration and so you should modify
+the scripts to suit your setup.
 
 Routing Daemon
-``````````````
+''''''''''''''
 
 The example hook scripts require that the routing daemon (like ``olsrd``) be
 configured with the tunneldigger bridge interfaces.
