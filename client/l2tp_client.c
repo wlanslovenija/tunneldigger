@@ -110,6 +110,10 @@ typedef struct {
   // Tunnel uptime
   time_t tunnel_up_since;
   
+  // Should the context only be used as a standby context
+  int standby_only;
+  int standby_available;
+  
   // PMTU probing
   int pmtu;
   int probed_pmtu;
@@ -191,7 +195,7 @@ void put_u16(unsigned char **buffer, uint16_t value)
 }
 
 l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
-  int broker_port, char *tunnel_iface, int tunnel_id)
+  int broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
   if (!ctx) {
@@ -226,10 +230,12 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     goto free_and_return;
   
-  ctx->uuid = uuid;
-  ctx->tunnel_iface = tunnel_iface;
+  ctx->uuid = strdup(uuid);
+  ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
-  ctx->hook = NULL;
+  ctx->hook = hook ? strdup(hook) : NULL;
+  ctx->standby_only = standby;
+  ctx->standby_available = 0;
   
   // Reset all timers
   time_t now = timer_now();
@@ -281,6 +287,8 @@ int context_reinitialize(l2tp_context *ctx)
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
+  
+  ctx->standby_available = 0;
   
   // Reset relevant timers
   time_t now = timer_now();
@@ -343,7 +351,14 @@ void context_process_control_packet(l2tp_context *ctx)
     case CONTROL_TYPE_COOKIE: {
       if (ctx->state == STATE_GET_COOKIE) {
         memcpy(&ctx->cookie, buf, payload_length);
-        ctx->state = STATE_GET_TUNNEL;
+        
+        // Mark the connection as being available for later establishment
+        ctx->standby_available = 1;
+        
+        // Only switch to tunnel establishment state if the context is
+        // not in standby-only state
+        if (!ctx->standby_only)
+          ctx->state = STATE_GET_TUNNEL;
       }
       break;
     }
@@ -675,6 +690,8 @@ void context_free(l2tp_context *ctx)
 
 void term_handler(int signum)
 {
+  syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
+  
   if (main_context) {
     context_close_tunnel(main_context);
     main_context = NULL;
@@ -696,9 +713,8 @@ void show_help(const char *app)
     "       -h         this text\n"
     "       -f         don't daemonize into background\n"
     "       -u uuid    set UUID string\n"
-    "       -l ip      local IP address to bind to\n"
-    "       -b ip      broker IP address\n"
-    "       -p port    broker port (default 53)\n"
+    "       -l ip      local IP address to bind to (default 0.0.0.0)\n"
+    "       -b ip:port broker IP address and port (can be specified multiple times)\n"
     "       -i iface   tunnel interface name\n"
     "       -s hook    hook script\n"
     "       -t id      local tunnel id (default 1)\n"
@@ -723,10 +739,21 @@ int main(int argc, char **argv)
   signal(SIGCHLD, child_handler);
   
   // Parse program options
-  char *uuid = NULL, *local_ip = NULL, *broker_ip = NULL, *tunnel_iface = NULL;
+  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL;
   char *hook = NULL;
-  int broker_port = 53;
   int tunnel_id = 1;
+  
+  // List of brokers
+  typedef struct {
+    char *address;
+    int port;
+    l2tp_context *ctx;
+  } broker_cfg;
+#define MAX_BROKERS 10
+  
+  broker_cfg brokers[MAX_BROKERS];
+  int broker_cnt = 0;
+  
   char c;
   while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:")) != EOF) {
     switch (c) {
@@ -737,8 +764,18 @@ int main(int argc, char **argv)
       case 'f': break;
       case 'u': uuid = strdup(optarg); break;
       case 'l': local_ip = strdup(optarg); break;
-      case 'b': broker_ip = strdup(optarg); break;
-      case 'p': broker_port = atoi(optarg); break;
+      case 'b': {
+        if (broker_cnt >= MAX_BROKERS) {
+          fprintf(stderr, "ERROR: You cannot specify more than %d brokers!\n", MAX_BROKERS);
+          return 1;
+        }
+        
+        brokers[broker_cnt].address = strdup(strtok(optarg, ":"));
+        brokers[broker_cnt].port = atoi(strtok(NULL, ":"));
+        brokers[broker_cnt].ctx = NULL;
+        broker_cnt++;
+        break;
+      }
       case 'i': tunnel_iface = strdup(optarg); break;
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = atoi(optarg); break;
@@ -750,39 +787,106 @@ int main(int argc, char **argv)
     }
   }
   
-  if (!uuid || !local_ip || !broker_ip || !tunnel_iface) {
-    fprintf(stderr, "ERROR: UUID, local IP, broker IP and tunnel interface are required options!\n");
+  if (!uuid || broker_cnt < 1 || !tunnel_iface) {
+    fprintf(stderr, "ERROR: UUID, tunnel interface and broker list are required options!\n");
     show_help(argv[0]);
     return 1;
   }
   
-  // Attempt to initialize the L2TP context. This might fail because the network is still
-  // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
-  // and then abort.
-  int tries = 0;
-  for (;;) {
-    main_context = context_init(uuid, local_ip, broker_ip, broker_port, tunnel_iface, tunnel_id);
-    if (!main_context) {
-      if (++tries >= 120) {
-        syslog(LOG_ERR, "Unable to initialize L2TP context! Aborting.");
-        return 1;
+  // Initialize contexts for all configured brokers in standby mode
+  int i;
+  for (i = 0; i < broker_cnt; i++) {
+    // Attempt to initialize the L2TP context. This might fail because the network is still
+    // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
+    // and then abort.
+    int tries = 0;
+    for (;;) {
+      brokers[i].ctx = context_init(uuid, local_ip, brokers[i].address, brokers[i].port,
+        tunnel_iface, hook, tunnel_id, 1);
+      
+      if (!brokers[i].ctx) {
+        if (++tries >= 120) {
+          syslog(LOG_ERR, "Unable to initialize L2TP context! Aborting.");
+          return 1;
+        }
+        
+        syslog(LOG_ERR, "Unable to initialize L2TP context! Retrying in 5 seconds...");
+        sleep(5);
+        continue;
       }
       
-      syslog(LOG_ERR, "Unable to initialize L2TP context! Retrying in 5 seconds...");
-      sleep(5);
-      continue;
+      // Context successfully initialized
+      break;
     }
-    
-    // Context successfully initialized
-    break;
   }
-  
-  main_context->hook = hook;
   
   for (;;) {
-    context_process(main_context);
+    syslog(LOG_INFO, "Performing broker selection...");
+    
+    // Reset availability information and standby setting
+    for (i = 0; i < broker_cnt; i++) {
+      brokers[i].ctx->standby_only = 1;
+      brokers[i].ctx->standby_available = 0;
+    }
+    
+    // Perform broker processing for 20 seconds or until all brokers are ready
+    // (whichever is shorter); since all contexts are in standby mode, all
+    // available connections will be stuck in GET_COOKIE state
+    time_t timer_collect = timer_now();
+    for (;;) {
+      int ready_cnt = 0;
+      for (i = 0; i < broker_cnt; i++) {
+        context_process(brokers[i].ctx);
+        if (brokers[i].ctx->standby_available)
+          ready_cnt++;
+      }
+      
+      if (ready_cnt == broker_cnt || (is_timeout(&timer_collect, 20) && ready_cnt > 0))
+        break;
+    }
+    
+    // Select the first available broker and use it to establish a tunnel
+    for (i = 0; i < broker_cnt; i++) {
+      if (brokers[i].ctx->standby_available) {
+        brokers[i].ctx->standby_only = 0;
+        main_context = brokers[i].ctx;
+        break;
+      }
+    }
+    
+    syslog(LOG_INFO, "Selected %s:%d as the best broker.", brokers[i].address,
+      brokers[i].port);
+    
+    // Perform processing on the main context; if the connection fails and does
+    // not recover after 30 seconds, restart the broker selection process
+    int restart_timer = 0;
+    time_t timer_establish = timer_now();
+    for (;;) {
+      context_process(main_context);
+      
+      // If the connection is lost, we start the reconnection timer
+      if (restart_timer && main_context->state != STATE_KEEPALIVE) {
+        timer_establish = timer_now();
+        restart_timer = 0;
+      }
+      
+      // After 30 seconds, we check if the tunnel has been established
+      if (is_timeout(&timer_establish, 30)) {
+        if (main_context->state != STATE_KEEPALIVE) {
+          // Tunnel is not established yet, skip to the next broker
+          syslog(LOG_ERR, "Connection with broker not established after 30 seconds, restarting broker selection...");
+          break;
+        }
+        
+        timer_establish = -1;
+        restart_timer = 1;
+      }
+    }
+    
+    // If we are here, the connection has been lost
+    main_context = NULL;
   }
-  
+
   return 0;
 }
 
