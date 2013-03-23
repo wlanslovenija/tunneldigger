@@ -349,8 +349,12 @@ class Tunnel(gevent.Greenlet):
       # Check if we are still alive or not; if not, kill the tunnel
       timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")
       if datetime.datetime.now() - self.last_alive > datetime.timedelta(seconds = timeout_interval):
-        logger.warning("Session with tunnel %d to %s:%d timed out." % (self.id, self.endpoint[0],
-          self.endpoint[1]))
+        if self.manager.config.getboolean('log', 'log_ip_addresses'):
+          logger.warning("Session with tunnel %d to %s:%d timed out." % (self.id, self.endpoint[0],
+            self.endpoint[1]))
+        else:
+          logger.warning("Session with tunnel %d timed out." % self.id)
+        
         gevent.spawn(self.manager.close_tunnel, self)
         return
       
@@ -422,8 +426,11 @@ class Tunnel(gevent.Greenlet):
           # and remote nodes send us ICMP fragmentation needed messages
           continue 
         elif e.errno != 9:
-          logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror, 
-            self.id, self.endpoint[0], self.endpoint[1]))
+          if self.manager.config.getboolean('log', 'log_ip_addresses'):
+            logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror, 
+              self.id, self.endpoint[0], self.endpoint[1]))
+          else:
+            logger.error("Socket error %d (%s) in tunnel %d!" % (e.errno, e.strerror, self.id))
         else:
           logger.info("Closing control channel for tunnel %d." % self.id)
         
@@ -807,14 +814,21 @@ class TunnelManager(object):
     if tunnel.endpoint not in self.tunnels:
       return
     
-    logger.info("Closing tunnel %d to %s:%d." % (tunnel.id, tunnel.endpoint[0],
-      tunnel.endpoint[1]))
+    if self.config.getboolean('log', 'log_ip_addresses'):
+      logger.info("Closing tunnel %d to %s:%d." % (tunnel.id, tunnel.endpoint[0],
+        tunnel.endpoint[1]))
+    else:
+      logger.info("Closing tunnel %d." % (tunnel.id))
     
     try:
       tunnel.close()
     except:
-      logger.error("Exception while closing tunnel %d to %s:%d!" % (tunnel.id,
-        tunnel.endpoint[0], tunnel.endpoint[1]))
+      if self.config.getboolean('log', 'log_ip_addresses'):
+        logger.error("Exception while closing tunnel %d to %s:%d!" % (tunnel.id,
+          tunnel.endpoint[0], tunnel.endpoint[1]))
+      else:
+        logger.error("Exception while closing tunnel %d!" % tunnel.id)
+      
       logger.debug(traceback.format_exc())
     
     del self.tunnels[tunnel.endpoint]
@@ -877,7 +891,11 @@ class TunnelManager(object):
       self.tunnel_ids.append(tunnel.id)
       return None, False
     
-    logger.info("New tunnel (id=%d uuid=%s) created with %s." % (tunnel.id, tunnel.uuid, tunnel.endpoint[0]))
+    if self.config.getboolean('log', 'log_ip_addresses'):
+      logger.info("New tunnel (id=%d uuid=%s) created with %s." % (tunnel.id, tunnel.uuid, tunnel.endpoint[0]))
+    else:
+      logger.info("New tunnel (id=%d uuid=%s) created." % (tunnel.id, tunnel.uuid))
+    
     self.tunnels[endpoint] = tunnel
     tunnel.start()
     return tunnel, True
