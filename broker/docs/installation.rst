@@ -46,9 +46,12 @@ interfaces, you also need the following packages:
 
 * ebtables
 
-You can install all of the above simply by running::
+You can install all of the above simply by running on Ubuntu::
 
     sudo apt-get install iproute bridge-utils libnetfilter-conntrack3 python-dev libevent-dev ebtables
+
+and for Fedora you can use this command:
+    sudo yum install iproute bridge-utils libnetfilter_conntrack python-devel libevent-devel ebtables libnl-devel python-pip
 
 There are also some Python modules required, all of them are listed in the 
 ``requirements.txt`` file that is included in the tunneldigger distribution. You
