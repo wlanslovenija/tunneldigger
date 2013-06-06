@@ -68,6 +68,7 @@
 #endif
 
 enum l2tp_ctrl_type {
+  // Unreliable messages (0x00 - 0x7F)
   CONTROL_TYPE_COOKIE    = 0x01,
   CONTROL_TYPE_PREPARE   = 0x02,
   CONTROL_TYPE_ERROR     = 0x03,
@@ -75,6 +76,14 @@ enum l2tp_ctrl_type {
   CONTROL_TYPE_KEEPALIVE = 0x05,
   CONTROL_TYPE_PMTUD     = 0x06,
   CONTROL_TYPE_PMTUD_ACK = 0x07,
+  CONTROL_TYPE_REL_ACK   = 0x08,
+
+  // Reliable messages (0x80 - 0xFF)
+  CONTROL_TYPE_LIMIT     = 0x80,
+};
+
+enum l2tp_limit_type {
+  LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
 };
 
 enum l2tp_ctrl_state {
@@ -83,6 +92,16 @@ enum l2tp_ctrl_state {
   STATE_KEEPALIVE,
   STATE_REINIT,
 };
+
+typedef struct reliable_message {
+  uint16_t seqno;
+  uint8_t retries;
+  time_t timer_rexmit;
+  char *msg;
+  uint8_t len;
+
+  struct reliable_message *next;
+} reliable_message;
 
 typedef struct {
   // UUID
@@ -106,6 +125,13 @@ typedef struct {
   // Netlink socket
   struct nl_handle *nl_sock;
   int nl_family;
+  // Sequence number for reliable messages
+  uint16_t reliable_seqno;
+  // List of unacked reliable messages
+  reliable_message *reliable_unacked;
+
+  // Limits
+  uint32_t limit_bandwidth_down;
   
   // Tunnel uptime
   time_t tunnel_up_since;
@@ -133,6 +159,8 @@ typedef struct {
 // Forward declarations
 void context_close_tunnel(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
+void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
+void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 
 static l2tp_context *main_context = NULL;
 
@@ -194,6 +222,15 @@ void put_u16(unsigned char **buffer, uint16_t value)
   (*buffer) += sizeof(value);
 }
 
+void put_u32(unsigned char **buffer, uint32_t value)
+{
+  (*buffer)[0] = value >> 24;
+  (*buffer)[1] = value >> 16;
+  (*buffer)[2] = value >> 8;
+  (*buffer)[3] = value;
+  (*buffer) += sizeof(value);
+}
+
 l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
   int broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
@@ -236,6 +273,11 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->hook = hook ? strdup(hook) : NULL;
   ctx->standby_only = standby;
   ctx->standby_available = 0;
+  ctx->reliable_seqno = 0;
+  ctx->reliable_unacked = NULL;
+
+  // Reset limits
+  ctx->limit_bandwidth_down = 0;
   
   // Reset all timers
   time_t now = timer_now();
@@ -289,6 +331,13 @@ int context_reinitialize(l2tp_context *ctx)
     return -1;
   
   ctx->standby_available = 0;
+  ctx->reliable_seqno = 0;
+  while (ctx->reliable_unacked != NULL) {
+    reliable_message *next = ctx->reliable_unacked->next;
+    free(ctx->reliable_unacked->msg);
+    free(ctx->reliable_unacked);
+    ctx->reliable_unacked = next;
+  }
   
   // Reset relevant timers
   time_t now = timer_now();
@@ -317,6 +366,30 @@ void context_call_hook(l2tp_context *ctx, const char *hook)
   if (pid == 0) {
     execl(ctx->hook, ctx->hook, hook, ctx->tunnel_iface, (char*) NULL);
     exit(1);
+  }
+}
+
+void context_limit_send_simple_request(l2tp_context *ctx, uint8_t type, uint32_t limit)
+{
+  char buffer[16];
+  unsigned char *buf = (unsigned char*) &buffer;
+
+  put_u8(&buf, type);
+  // Simple request are always a single 4 byte integer
+  put_u8(&buf, 4);
+  put_u32(&buf, limit);
+  
+  // Now send the packet
+  context_send_reliable_packet(ctx, CONTROL_TYPE_LIMIT, (char*) &buffer, 6);
+}
+
+void context_setup_limits(l2tp_context *ctx)
+{
+  // Configure downstream bandwidth limit
+  if (ctx->limit_bandwidth_down > 0) {
+    syslog(LOG_INFO, "Requesting the broker to configure downstream bandwidth limit of %d kbps.",
+      ctx->limit_bandwidth_down);
+    context_limit_send_simple_request(ctx, LIMIT_TYPE_BANDWIDTH_DOWN, ctx->limit_bandwidth_down);
   }
 }
 
@@ -382,6 +455,7 @@ void context_process_control_packet(l2tp_context *ctx)
           context_call_hook(ctx, "session.up");
           ctx->tunnel_up_since = timer_now();
           ctx->state = STATE_KEEPALIVE;
+          context_setup_limits(ctx);
         }
       }
       break;
@@ -406,14 +480,36 @@ void context_process_control_packet(l2tp_context *ctx)
       }
       break;
     }
+    case CONTROL_TYPE_REL_ACK: {
+      // ACK of a reliable message
+      uint16_t seqno = parse_u16(&buf);
+      reliable_message *msg = ctx->reliable_unacked;
+      reliable_message *prev = NULL;
+      while (msg != NULL) {
+        if (msg->seqno == seqno) {
+          // Remove from list
+          if (prev == NULL) {
+            ctx->reliable_unacked = msg->next;
+          } else {
+            prev->next = msg->next;
+          }
+
+          free(msg->msg);
+          free(msg);
+          return;
+        }
+
+        prev = msg;
+        msg = msg->next;
+      }
+      break;
+    }
     default: return;
   }
 }
 
-void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
+void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type, char *payload, uint8_t len)
 {
-  char buffer[2048];
-  unsigned char *buf = (unsigned char*) &buffer;
   put_u8(&buf, 0x80);
   put_u16(&buf, 0x73A7);
   put_u8(&buf, 1);
@@ -427,6 +523,59 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
   if (L2TP_CONTROL_SIZE + len < 12)
     len += 12 - L2TP_CONTROL_SIZE - len;
   
+  // Send the packet
+  if (send(ctx->fd, buf, L2TP_CONTROL_SIZE + len, 0) < 0) {
+    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+  }
+}
+
+void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
+{
+  char *packet = (char*) malloc(L2TP_CONTROL_SIZE + len + 2);
+  char buffer[512];
+  unsigned char *buf = (unsigned char*) &buffer;
+
+  put_u16(&buf, ctx->reliable_seqno);
+  memcpy(buf, payload, len);
+  context_prepare_packet(ctx, packet, type, (char*) &buffer, len + 2);
+
+  // Store packet to unacked list
+  reliable_message *msg = (reliable_message*) malloc(sizeof(reliable_message));
+  msg->seqno = ctx->reliable_seqno;
+  msg->retries = 0;
+  msg->timer_rexmit = timer_now();
+  msg->msg = packet;
+  msg->len = L2TP_CONTROL_SIZE + len + 2;
+  msg->next = NULL;
+
+  if (ctx->reliable_unacked == NULL) {
+    ctx->reliable_unacked = msg;
+  } else {
+    reliable_message *m = ctx->reliable_unacked;
+    while (m->next != NULL)
+      m = m->next;
+
+    m->next = msg;
+  }
+
+  // TODO If there are too many unacked messages, start dropping new ones
+
+  ctx->reliable_seqno++;
+  context_send_raw_packet(ctx, msg->msg, msg->len);
+}
+
+void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
+{
+  if (send(ctx->fd, packet, len, 0) < 0) {
+    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+  }
+}
+
+void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
+{
+  char buffer[2048];
+  context_prepare_packet(ctx, (unsigned char*) &buffer, type, payload, len);
+
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
     syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
@@ -658,6 +807,31 @@ void context_process(l2tp_context *ctx)
       
       if (is_timeout(&ctx->timer_pmtu_xmit, 1))
         context_pmtu_start_discovery(ctx);
+
+      // Check if we need to attempt to retransmit any reliable messages
+      reliable_message *msg = ctx->reliable_unacked;
+      reliable_message *prev = NULL;
+      while (msg != NULL) {
+        if (is_timeout(&msg->timer_rexmit, 1)) {
+          if (++msg->retries >= 10) {
+            syslog(LOG_WARNING, "Dropping message that has been retried too many times.");
+
+            if (prev != NULL) {
+              prev->next = msg->next;
+            } else {
+              ctx->reliable_unacked = msg->next;
+            }
+
+            msg = msg->next;
+            continue;
+          }
+
+          context_send_raw_packet(ctx, msg->msg, msg->len);
+        }
+
+        prev = msg;
+        msg = msg->next;
+      }
       
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 60) {
@@ -718,6 +892,7 @@ void show_help(const char *app)
     "       -i iface   tunnel interface name\n"
     "       -s hook    hook script\n"
     "       -t id      local tunnel id (default 1)\n"
+    "       -L limit   request broker to set downstream bandwidth limit (in kbps)\n"
   );
 }
 
@@ -729,9 +904,6 @@ int main(int argc, char **argv)
     return 1;
   }
   
-  // Open the syslog facility
-  openlog("l2tp-client", 0, LOG_DAEMON);
-  
   // Install signal handlers
   signal(SIGPIPE, SIG_IGN);
   signal(SIGINT, term_handler);
@@ -739,9 +911,11 @@ int main(int argc, char **argv)
   signal(SIGCHLD, child_handler);
   
   // Parse program options
+  int log_option = 0;
   char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL;
   char *hook = NULL;
   int tunnel_id = 1;
+  int limit_bandwidth_down = 0;
   
   // List of brokers
   typedef struct {
@@ -755,13 +929,13 @@ int main(int argc, char **argv)
   int broker_cnt = 0;
   
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
         return 1;
       }
-      case 'f': break;
+      case 'f': log_option |= LOG_PERROR; break;
       case 'u': uuid = strdup(optarg); break;
       case 'l': local_ip = strdup(optarg); break;
       case 'b': {
@@ -779,6 +953,7 @@ int main(int argc, char **argv)
       case 'i': tunnel_iface = strdup(optarg); break;
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = atoi(optarg); break;
+      case 'L': limit_bandwidth_down = atoi(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -792,6 +967,9 @@ int main(int argc, char **argv)
     show_help(argv[0]);
     return 1;
   }
+
+  // Open the syslog facility
+  openlog("l2tp-client", log_option, LOG_DAEMON);
   
   // Initialize contexts for all configured brokers in standby mode
   int i;
@@ -814,6 +992,8 @@ int main(int argc, char **argv)
         sleep(5);
         continue;
       }
+
+      brokers[i].ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
       
       // Context successfully initialized
       break;

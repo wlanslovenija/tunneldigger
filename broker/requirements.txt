@@ -3,3 +3,4 @@ repoze.lru==0.5
 gevent==0.13.7
 gevent-subprocess==0.1.1
 http://opensource.bolloretelecom.eu/files/python-netfilter-0.5.7.tar.gz
+ShaPy==1.0.1

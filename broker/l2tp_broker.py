@@ -36,6 +36,7 @@ import signal
 import struct
 import sys
 import traceback
+import traffic_control
 
 # Control message for our protocol; first few bits are special as we have to
 # maintain compatibility with LTPv3 in the kernel (first bit must be 1); also
@@ -56,6 +57,7 @@ ControlMessage = cs.Struct("control",
   cs.Padding(lambda ctx: max(0, 6 - len(ctx["data"]))),
 )
 
+# Unreliable messages (0x00 - 0x7F)
 CONTROL_TYPE_COOKIE    = 0x01
 CONTROL_TYPE_PREPARE   = 0x02
 CONTROL_TYPE_ERROR     = 0x03
@@ -63,6 +65,11 @@ CONTROL_TYPE_TUNNEL    = 0x04
 CONTROL_TYPE_KEEPALIVE = 0x05
 CONTROL_TYPE_PMTUD     = 0x06
 CONTROL_TYPE_PMTUD_ACK = 0x07
+CONTROL_TYPE_REL_ACK   = 0x08
+
+# Reliable messages (0x80 - 0xFF)
+MASK_CONTROL_TYPE_RELIABLE = 0x80
+CONTROL_TYPE_LIMIT     = 0x80
 
 # Prepare message
 PrepareMessage = cs.Struct("prepare",
@@ -70,6 +77,16 @@ PrepareMessage = cs.Struct("prepare",
   cs.PascalString("uuid"),
   cs.Optional(cs.UBInt16("tunnel_id")),
 )
+
+# Limit message
+LimitMessage = cs.Struct("limit",
+  # Limit type
+  cs.UBInt8("type"),
+  # Limit configuration
+  cs.PascalString("data")
+)
+
+LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
 
 # Overhead of IP and UDP headers for measuring PMTU
 IPV4_HDR_OVERHEAD = 28
@@ -297,6 +314,43 @@ class NetlinkInterface(object):
     
     return sessions
 
+class Limits(object):
+  def __init__(self, tunnel):
+    """
+    Class constructor.
+
+    :param tunnel: Tunnel instance
+    """
+    self.tunnel = tunnel
+
+  def configure(self, limit):
+    """
+    Configures a specific limit.
+
+    :param limit: Limit message type
+    """
+    if limit.type == LIMIT_TYPE_BANDWIDTH_DOWN:
+      # Downstream (client-wise) limit setup
+      try:
+        bandwidth = cs.UBInt32("bandwidth").parse(limit.data)
+      except cs.ConstructError:
+        logger.warning("Invalid bandwidth limit requested on tunnel %d." % self.tunnel.id)
+        return
+
+      logger.info("Setting bandwidth limit to %d kbps on tunnel %d." % (bandwidth, self.tunnel.id))
+
+      # Setup bandwidth limit using Linux traffic shaping
+      try:
+        tc = traffic_control.TrafficControl(self.tunnel.sessions.values()[0].name)
+        tc.reset()
+        tc.set_fixed_bandwidth(bandwidth)
+      except traffic_control.TrafficControlError:
+        logger.warning("Unable to configure traffic shaping rules for tunnel %d." % self.tunnel.id)
+
+      return True
+    else:
+      return False
+
 class Session(object):
   id = None
   peer_id = None
@@ -317,6 +371,7 @@ class Tunnel(gevent.Greenlet):
     self.manager = manager
     self.handler = MessageHandler(manager, port, self)
     self.external_port = port
+    self.limits = Limits(self)
     self.sessions = {}
     self.next_session_id = 1
     self.keep_alive()
@@ -464,6 +519,22 @@ class Tunnel(gevent.Greenlet):
         
         if psize > self.probed_pmtu:
           self.probed_pmtu = psize
+      elif msg.type & MASK_CONTROL_TYPE_RELIABLE:
+        # Reliable messages that require ACK, transmit one now
+        data = msg.data[2:]
+        self.handler.send_message(self.socket, CONTROL_TYPE_REL_ACK, msg.data[:2])
+
+        if msg.type == CONTROL_TYPE_LIMIT:
+          # Client requests limit configuration
+          try:
+            limit = LimitMessage.parse(data)
+          except cs.ConstructError:
+            logger.warning("Invalid limit control message received on tunnel %d." % self.id)
+            return
+
+          if not self.limits.configure(limit):
+            logger.warning("Unknown type of limit (%d) requested on tunnel %d." % (limit.type, self.id))
+            return
   
   def close(self, kill = True):
     """
@@ -1054,6 +1125,7 @@ if __name__ == '__main__':
       filename = config.get("log", "filename"),
       filemode = 'a'
     )
+    logging.root.handlers[0].addFilter(logging.Filter('tunneldigger'))
     logger = logging.getLogger("tunneldigger.broker")
     
     # Setup the base control server
