@@ -30,6 +30,9 @@ In addition the kernel must support network address translation via netfilter,
 otherwise the tunnels will not work as tunneldigger uses translation to achieve
 that all tunnels operate over the same external port.
 
+Also, if you want to have working bandwidth limits, the kernel must support traffic
+shaping and the HTB queuing discipline.
+
 The system should be configured to load these modules at boot which is usually done
 by listing the modules in ``/etc/modules``.
 
