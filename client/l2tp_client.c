@@ -236,6 +236,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
   if (!ctx) {
+    syslog(LOG_ERR, "Failed to allocate memory for context!");
     return NULL;
   }
   
@@ -244,28 +245,40 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   // Setup the UDP socket that we will use for connecting with the
   // broker and for data transport
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (ctx->fd < 0)
+  if (ctx->fd < 0) {
+    syslog(LOG_ERR, "Failed to create new UDP socket!");
     goto free_and_return;
+  }
   
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
-  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr.s_addr) < 0)
+  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr.s_addr) < 0) {
+    syslog(LOG_ERR, "Failed to parse local endpoint!");
     goto free_and_return;
+  }
   
   ctx->broker_endpoint.sin_family = AF_INET;
   ctx->broker_endpoint.sin_port = htons(broker_port);
-  if (inet_aton(broker_ip, &ctx->broker_endpoint.sin_addr.s_addr) < 0)
+  if (inet_aton(broker_ip, &ctx->broker_endpoint.sin_addr.s_addr) < 0) {
+    syslog(LOG_ERR, "Failed to parse remote endpoint!");
     goto free_and_return;
+  }
   
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0)
+  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
+    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
     goto free_and_return;
+  }
   
-  if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
+  if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0) {
+    syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
     goto free_and_return;
+  }
   
   int val = IP_PMTUDISC_PROBE;
-  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
+  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
+    syslog(LOG_ERR, "Failed to setup PMTU socket options!");
     goto free_and_return;
+  }
   
   ctx->uuid = strdup(uuid);
   ctx->tunnel_iface = strdup(tunnel_iface);
@@ -297,15 +310,21 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
-  if (!ctx->nl_sock)
+  if (!ctx->nl_sock) {
+    syslog(LOG_ERR, "Failed to allocate a netlink socket!");
     goto free_and_return;
+  }
   
-  if (nl_connect(ctx->nl_sock, NETLINK_GENERIC) < 0)
+  if (nl_connect(ctx->nl_sock, NETLINK_GENERIC) < 0) {
+    syslog(LOG_ERR, "Failed to connect to netlink!");
     goto free_and_return;
+  }
   
   ctx->nl_family = genl_ctrl_resolve(ctx->nl_sock, L2TP_GENL_NAME);
-  if (ctx->nl_family < 0)
+  if (ctx->nl_family < 0) {
+    syslog(LOG_ERR, "Failed to resolve L2TP netlink interface - check if L2TP kernel modules are loaded!");
     goto free_and_return;
+  }
   
   return ctx;
 free_and_return:
