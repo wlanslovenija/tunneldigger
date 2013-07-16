@@ -3,3 +3,4 @@
 *.o
 l2tp_client
 *.sublime-*
+/docs/_build
