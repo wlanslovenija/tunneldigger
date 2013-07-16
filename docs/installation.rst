@@ -1,7 +1,7 @@
 Installation
 ============
 
-The installation of tunneldigger is pretty straightforward and is described
+The installation of Tunneldigger is pretty straightforward and is described
 in the following sections.
 
 Getting the Source
@@ -20,14 +20,14 @@ Prerequisites
 -------------
 
 The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
-tunnels. The following modules are required for tunneldigger operation:
+tunnels. The following modules are required for Tunneldigger operation:
 
 * l2tp_core
 * l2tp_eth
 * l2tp_netlink
 
 In addition the kernel must support network address translation via netfilter,
-otherwise the tunnels will not work as tunneldigger uses translation to achieve
+otherwise the tunnels will not work as Tunneldigger uses translation to achieve
 that all tunnels operate over the same external port.
 
 Also, if you want to have working bandwidth limits, the kernel must support traffic
@@ -58,7 +58,7 @@ and for Fedora you can use this command::
     sudo yum install iproute bridge-utils libnetfilter_conntrack python-devel libevent-devel ebtables libnl-devel python-pip
 
 There are also some Python modules required, all of them are listed in the 
-``requirements.txt`` file that is included in the tunneldigger distribution. You
+``requirements.txt`` file that is included in the Tunneldigger distribution. You
 can install all of them (after you have already installed the above Debian packages) with
 the use of ``pip`` as follows::
 
@@ -95,5 +95,5 @@ Routing Daemon
 ''''''''''''''
 
 The example hook scripts require that the routing daemon (like ``olsrd``) be
-configured with the tunneldigger bridge interfaces.
+configured with the Tunneldigger bridge interfaces.
 

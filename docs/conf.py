@@ -40,7 +40,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'tunneldigger'
+project = u'Tunneldigger'
 copyright = u'2012, wlan slovenija'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -178,7 +178,7 @@ htmlhelp_basename = 'tunneldiggerdoc'
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'tunneldigger.tex', u'tunneldigger Documentation',
+  ('index', 'tunneldigger.tex', u'Tunneldigger Documentation',
    u'wlan slovenija', 'manual'),
 ]
 
@@ -211,7 +211,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'tunneldigger', u'tunneldigger Documentation',
+    ('index', 'tunneldigger', u'Tunneldigger Documentation',
      [u'wlan slovenija'], 1)
 ]
 

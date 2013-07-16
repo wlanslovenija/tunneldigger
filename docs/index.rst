@@ -1,4 +1,4 @@
-tunneldigger's documentation
+Tunneldigger's documentation
 ============================
 
 Tunneldigger is one of the projects of `wlan slovenija`_ open wireless network.
