@@ -1,8 +1,8 @@
-Installation
-============
+Server Installation
+===================
 
-The installation of Tunneldigger is pretty straightforward and is described
-in the following sections.
+The installation of Tunneldigger's server side is pretty straightforward and is
+described in the following sections.
 
 Getting the Source
 ------------------

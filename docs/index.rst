@@ -13,7 +13,8 @@ Contents
 .. toctree::
    :maxdepth: 2
 
-   installation
+   server
+   client
 
 Issue Tracker, Source Code and Mailing List
 -------------------------------------------
