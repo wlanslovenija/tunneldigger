@@ -831,6 +831,8 @@ class TunnelManager(object):
         continue
     
     self.restore_netfilter()
+    # Close any stale tunnels that might still be up
+    self.setup_tunnels()
   
   def issue_cookie(self, endpoint):
     """
