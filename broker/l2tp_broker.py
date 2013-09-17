@@ -832,6 +832,8 @@ class TunnelManager(object):
     
     self.restore_netfilter()
     # Close any stale tunnels that might still be up
+    id_base = config.getint('broker', 'tunnel_id_base')
+    self.tunnel_ids = range(id_base, id_base + max_tunnels + 1)
     self.setup_tunnels()
   
   def issue_cookie(self, endpoint):
