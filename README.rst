@@ -10,3 +10,9 @@ recent Linux kernels.
 Documentation is found at:
 
 http://tunneldigger.readthedocs.org/
+
+More info at on `wlan slovenija wiki`_ and `development mailing list` for
+questions and development discussions.
+
+.. _wlan slovenija wiki: https://dev.wlan-si.net/wiki/Tunneldigger
+.. _development mailing list: https://wlan-si.net/lists/info/development
