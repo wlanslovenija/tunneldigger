@@ -1,7 +1,7 @@
 /*
  * Client for our custom L2TPv3 brokerage protocol.
  *
- * Copyright (C) 2012 by Jernej Kos <k@jst.sm>
+ * Copyright (C) 2012 by Jernej Kos <jernej@kos.mx>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by the
