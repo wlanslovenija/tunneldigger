@@ -1,5 +1,5 @@
-construct==2.06
+construct==2.5.1
 repoze.lru==0.5
 gevent==0.13.7
 gevent-subprocess==0.1.1
-http://opensource.bolloretelecom.eu/files/python-netfilter-0.5.7.tar.gz
+-e git+https://github.com/jlaine/python-netfilter.git@aa90d1a5f42a5eb02ba58e662728ed84c681ff18#egg=netfilter-master
