@@ -1,5 +1,5 @@
-Tunneldigger's documentation
-============================
+Tunneldigger documentation
+==========================
 
 Tunneldigger is one of the projects of `wlan slovenija`_ open wireless network.
 It is a simple VPN tunneling solution based on L2TPv3 tunnels supported in
@@ -16,7 +16,7 @@ Contents
    server
    client
 
-Issue Tracker, Source Code and Mailing List
+Source Code, Issue Tracker and Mailing List
 -------------------------------------------
 
 For development *wlan slovenija* open wireless network `development Trac`_ is
@@ -30,7 +30,7 @@ discuss the project, use `development mailing list`_.
 .. _GitHub: https://github.com/wlanslovenija/tunneldigger
 .. _development mailing list: https://wlan-si.net/lists/info/development
 
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`
