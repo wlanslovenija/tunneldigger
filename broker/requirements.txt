@@ -1,5 +1,6 @@
 construct==2.5.1
+gevent==1.0
+greenlet==0.4.2
+-e git+https://github.com/jlaine/python-netfilter.git@aa90d1a5f42a5eb02ba58e662728ed84c681ff18#egg=python_netfilter-master
 repoze.lru==0.5
-gevent==0.13.7
-gevent-subprocess==0.1.1
--e git+https://github.com/jlaine/python-netfilter.git@aa90d1a5f42a5eb02ba58e662728ed84c681ff18#egg=netfilter-master
+six==1.5.2

@@ -24,7 +24,6 @@ import datetime
 import fcntl
 import gevent
 import gevent.socket as gsocket
-import gevent_subprocess
 import genetlink
 import logging
 import netfilter.rule
@@ -741,7 +740,7 @@ class TunnelManager(object):
     
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
-    gevent_subprocess.call([script] + [str(x) for x in args])
+    gevent.subprocess.call([script] + [str(x) for x in args])
   
   def setup_tunnels(self):
     """
