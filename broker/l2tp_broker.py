@@ -24,7 +24,6 @@ import datetime
 import fcntl
 import gevent
 import gevent.socket as gsocket
-import gevent_subprocess
 import genetlink
 import logging
 import netfilter.rule
@@ -694,14 +693,14 @@ class TunnelManager(object):
     """
     logger.info("Setting up the tunnel manager...")
     self.config = config
-    max_tunnels = config.getint('broker', 'max_tunnels')
+    self.max_tunnels = config.getint('broker', 'max_tunnels')
     self.netlink = NetlinkInterface()
     self.conntrack = conntrack.ConnectionManager()
     self.tunnels = {}
     self.cookies = repoze.lru.LRUCache(config.getint('broker', 'max_cookies'))
     self.secret = os.urandom(32)
     id_base = config.getint('broker', 'tunnel_id_base')
-    self.tunnel_ids = range(id_base, id_base + max_tunnels + 1)
+    self.tunnel_ids = range(id_base, id_base + self.max_tunnels + 1)
     self.port_base = config.getint('broker', 'port_base')
     self.interface = config.get('broker', 'interface')
     self.address = config.get('broker', 'address')
@@ -713,7 +712,7 @@ class TunnelManager(object):
     self.setup_hooks()
     
     # Log some configuration variables
-    logger.info("  Maximum number of tunnels: %d" % max_tunnels)
+    logger.info("  Maximum number of tunnels: %d" % self.max_tunnels)
     logger.info("  Interface: %s" % self.interface)
     logger.info("  Address: %s" % self.address)
     logger.info("  Ports: %s" % self.ports)
@@ -741,7 +740,7 @@ class TunnelManager(object):
     
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
-    gevent_subprocess.call([script] + [str(x) for x in args])
+    gevent.subprocess.call([script] + [str(x) for x in args])
   
   def setup_tunnels(self):
     """
@@ -833,7 +832,7 @@ class TunnelManager(object):
     self.restore_netfilter()
     # Close any stale tunnels that might still be up
     id_base = config.getint('broker', 'tunnel_id_base')
-    self.tunnel_ids = range(id_base, id_base + max_tunnels + 1)
+    self.tunnel_ids = range(id_base, id_base + self.max_tunnels + 1)
     self.setup_tunnels()
   
   def issue_cookie(self, endpoint):
