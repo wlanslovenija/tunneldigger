@@ -24,7 +24,7 @@ import datetime
 import fcntl
 import gevent
 import gevent.socket as gsocket
-# import gevent.subprocess needs to be explicit
+# Import gevent.subprocess needs to be explicit
 import gevent.subprocess
 import genetlink
 import logging
