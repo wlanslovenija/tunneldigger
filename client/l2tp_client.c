@@ -24,6 +24,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <netdb.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -159,6 +160,15 @@ typedef struct {
   time_t timer_reinit;
 } l2tp_context;
 
+// List of brokers
+typedef struct {
+  struct addrinfo info;
+  int port;
+  l2tp_context *ctx;
+} broker_cfg;
+
+#define MAX_BROKERS 10
+
 // Forward declarations
 void context_close_tunnel(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
@@ -235,7 +245,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
+l2tp_context *context_init(char *uuid, const char *local_ip, const struct sockaddr *broker_ip,
   int broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
@@ -263,10 +273,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   
   ctx->broker_endpoint.sin_family = AF_INET;
   ctx->broker_endpoint.sin_port = htons(broker_port);
-  if (inet_aton(broker_ip, &ctx->broker_endpoint.sin_addr.s_addr) < 0) {
-    syslog(LOG_ERR, "Failed to parse remote endpoint!");
-    goto free_and_return;
-  }
+  memcpy(&ctx->broker_endpoint, broker_ip, sizeof(struct sockaddr));
   
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
@@ -877,6 +884,61 @@ void context_process(l2tp_context *ctx)
   }
 }
 
+char *resolv_print_info(struct addrinfo *curr)
+{
+    static char addr_str[INET6_ADDRSTRLEN];
+    if (curr->ai_family == AF_INET6) {
+        inet_ntop(AF_INET6,
+                   &((struct sockaddr_in6 *)curr->ai_addr)->sin6_addr,
+                   addr_str,
+                   sizeof (addr_str));
+    } else {
+        inet_ntop(AF_INET,
+                   &((struct sockaddr_in *)curr->ai_addr)->sin_addr,
+                   addr_str,
+                   sizeof (addr_str));
+    }
+    return addr_str;
+}
+
+int resolv_host(broker_cfg *config, int broker_cnt, char *host, char *port, l2tp_context *ctx)
+{
+    int count = 0;
+    struct addrinfo hints;
+    struct addrinfo *servinfo; // will point to the results
+
+    memset(&hints, 0, sizeof hints); // make sure the struct is empty
+    hints.ai_family = AF_UNSPEC; // don't care IPv4 or IPv6
+    hints.ai_socktype = SOCK_STREAM; // TCP stream sockets
+    hints.ai_flags = AI_PASSIVE; // fill in my IP for me
+
+    int status = getaddrinfo(host, port, &hints, &servinfo);
+    if (status != 0) {
+        fprintf(stderr, "getaddrinfo error: %s\n", gai_strerror(status));
+        exit(1);
+    }
+    //servinfo now points to a linked list of 1 or more struct addrinfos
+
+    int sockfd;
+    struct addrinfo *curr = NULL;
+    for (curr = servinfo; curr; curr = curr->ai_next) {
+        if (broker_cnt+count >= MAX_BROKERS) {
+          fprintf(stderr, "ERROR: You cannot specify more than %d brokers!\n", MAX_BROKERS);
+          return 1;
+        }
+
+        // some verbose info of what is going on
+        syslog(LOG_INFO, "got new broker on IP %s", resolv_print_info(curr));
+
+        memcpy(&config[broker_cnt+count].info, curr, sizeof(struct addrinfo));
+        config[broker_cnt+count].port = atoi(port);
+        config[broker_cnt+count].ctx = ctx;
+
+        count++;
+    }
+    return count;
+}
+
 void context_free(l2tp_context *ctx)
 {
   free(ctx->uuid);
@@ -944,14 +1006,6 @@ int main(int argc, char **argv)
   int tunnel_id = 1;
   int limit_bandwidth_down = 0;
   
-  // List of brokers
-  typedef struct {
-    char *address;
-    int port;
-    l2tp_context *ctx;
-  } broker_cfg;
-#define MAX_BROKERS 10
-  
   broker_cfg brokers[MAX_BROKERS];
   int broker_cnt = 0;
   
@@ -966,15 +1020,10 @@ int main(int argc, char **argv)
       case 'u': uuid = strdup(optarg); break;
       case 'l': local_ip = strdup(optarg); break;
       case 'b': {
-        if (broker_cnt >= MAX_BROKERS) {
-          fprintf(stderr, "ERROR: You cannot specify more than %d brokers!\n", MAX_BROKERS);
-          return 1;
-        }
-        
-        brokers[broker_cnt].address = strdup(strtok(optarg, ":"));
-        brokers[broker_cnt].port = atoi(strtok(NULL, ":"));
-        brokers[broker_cnt].ctx = NULL;
-        broker_cnt++;
+        char *host = strdup(strtok(optarg, ":"));
+        char *port = strdup(strtok(NULL, ":"));
+        l2tp_context *ctx = NULL;
+        broker_cnt += resolv_host(brokers, broker_cnt, host, port, ctx);
         break;
       }
       case 'i': tunnel_iface = strdup(optarg); break;
@@ -1006,7 +1055,7 @@ int main(int argc, char **argv)
     // and then abort.
     int tries = 0;
     for (;;) {
-      brokers[i].ctx = context_init(uuid, local_ip, brokers[i].address, brokers[i].port,
+      brokers[i].ctx = context_init(uuid, local_ip, brokers[i].info.ai_addr, brokers[i].port,
         tunnel_iface, hook, tunnel_id, 1);
       
       if (!brokers[i].ctx) {
@@ -1052,7 +1101,7 @@ int main(int argc, char **argv)
         break;
     }
     
-    // Select the first available broker and use it to establish a tunnel
+    syslog(LOG_INFO, "Select the first available broker and use it to establish a tunnel");
     for (i = 0; i < broker_cnt; i++) {
       if (brokers[i].ctx->standby_available) {
         brokers[i].ctx->standby_only = 0;
@@ -1061,9 +1110,8 @@ int main(int argc, char **argv)
       }
     }
     
-    syslog(LOG_INFO, "Selected %s:%d as the best broker.", brokers[i].address,
-      brokers[i].port);
-    
+    syslog(LOG_INFO, "Selected IP %s as the best broker.", resolv_print_info(&brokers[i].info));
+
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process
     int restart_timer = 0;
