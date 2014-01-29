@@ -164,6 +164,7 @@ void context_close_tunnel(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
+int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
 
 static l2tp_context *main_context = NULL;
 
