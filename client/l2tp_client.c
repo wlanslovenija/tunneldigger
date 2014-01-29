@@ -39,6 +39,9 @@
 #include <netlink/genl/ctrl.h>
 #include <netlink/utils.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <linux/genetlink.h>
 #include <linux/l2tp.h>
 
