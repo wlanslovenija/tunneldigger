@@ -661,7 +661,7 @@ void context_send_setup_request(l2tp_context *ctx)
   context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
 }
 
-int context_delete_tunnel(l2tp_context *ctx)
+void context_delete_tunnel(l2tp_context *ctx)
 {
   // Delete the session
   struct nl_msg *msg = nlmsg_alloc();
