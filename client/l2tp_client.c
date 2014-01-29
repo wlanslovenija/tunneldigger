@@ -887,6 +887,8 @@ void context_free(l2tp_context *ctx)
 
 void term_handler(int signum)
 {
+  (void) signum; /* unused */
+
   syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
   
   if (main_context) {
@@ -899,6 +901,8 @@ void term_handler(int signum)
 
 void child_handler(int signum)
 {
+  (void) signum; /* unused */
+
   int status;
   waitpid(-1, &status, WNOHANG);
 }
