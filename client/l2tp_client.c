@@ -39,6 +39,9 @@
 #include <netlink/genl/ctrl.h>
 #include <netlink/utils.h>
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include <linux/genetlink.h>
 #include <linux/l2tp.h>
 
@@ -161,6 +164,7 @@ void context_close_tunnel(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
+int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
 
 static l2tp_context *main_context = NULL;
 
@@ -657,7 +661,7 @@ void context_send_setup_request(l2tp_context *ctx)
   context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
 }
 
-int context_delete_tunnel(l2tp_context *ctx)
+void context_delete_tunnel(l2tp_context *ctx)
 {
   // Delete the session
   struct nl_msg *msg = nlmsg_alloc();
@@ -883,6 +887,8 @@ void context_free(l2tp_context *ctx)
 
 void term_handler(int signum)
 {
+  (void) signum; /* unused */
+
   syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
   
   if (main_context) {
@@ -895,6 +901,8 @@ void term_handler(int signum)
 
 void child_handler(int signum)
 {
+  (void) signum; /* unused */
+
   int status;
   waitpid(-1, &status, WNOHANG);
 }
