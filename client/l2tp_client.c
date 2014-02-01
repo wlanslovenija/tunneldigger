@@ -1059,8 +1059,9 @@ int main(int argc, char **argv)
     }
     
     syslog(LOG_INFO, "Select the first available broker and use it to establish a tunnel");
+    int r = rand() % ready_cnt;
     for (i = 0; i < broker_cnt; i++) {
-      if (brokers[i].standby_available) {
+      if (brokers[i].standby_available && (r-- == 0)) {
         brokers[i].standby_only = 0;
         main_context = &brokers[i];
         break;
