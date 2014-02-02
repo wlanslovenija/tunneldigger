@@ -1,7 +1,7 @@
 /*
  * Client for our custom L2TPv3 brokerage protocol.
  *
- * Copyright (C) 2012 by Jernej Kos <jernej@kos.mx>
+ * Copyright (C) 2012-2014 by Jernej Kos <jernej@kos.mx>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU Affero General Public License as published by the
@@ -135,14 +135,14 @@ typedef struct {
 
   // Limits
   uint32_t limit_bandwidth_down;
-  
+
   // Tunnel uptime
   time_t tunnel_up_since;
-  
+
   // Should the context only be used as a standby context
   int standby_only;
   int standby_available;
-  
+
   // PMTU probing
   int pmtu;
   int probed_pmtu;
@@ -150,7 +150,7 @@ typedef struct {
   time_t timer_pmtu_reprobe;
   time_t timer_pmtu_collect;
   time_t timer_pmtu_xmit;
-  
+
   // Last keepalive and timers
   time_t last_alive;
   time_t timer_cookie;
@@ -182,13 +182,13 @@ int is_timeout(time_t *timer, time_t period)
 {
   if (*timer < 0)
     return 0;
-  
+
   time_t now = timer_now();
   if (now - *timer > period) {
     *timer = now;
     return 1;
   }
-  
+
   return 0;
 }
 
@@ -243,9 +243,9 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     syslog(LOG_ERR, "Failed to allocate memory for context!");
     return NULL;
   }
-  
+
   ctx->state = STATE_GET_COOKIE;
-  
+
   // Setup the UDP socket that we will use for connecting with the
   // broker and for data transport
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
@@ -253,37 +253,37 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     syslog(LOG_ERR, "Failed to create new UDP socket!");
     goto free_and_return;
   }
-  
+
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
   if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr.s_addr) < 0) {
     syslog(LOG_ERR, "Failed to parse local endpoint!");
     goto free_and_return;
   }
-  
+
   ctx->broker_endpoint.sin_family = AF_INET;
   ctx->broker_endpoint.sin_port = htons(broker_port);
   if (inet_aton(broker_ip, &ctx->broker_endpoint.sin_addr.s_addr) < 0) {
     syslog(LOG_ERR, "Failed to parse remote endpoint!");
     goto free_and_return;
   }
-  
+
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
     goto free_and_return;
   }
-  
+
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
     goto free_and_return;
   }
-  
+
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
     syslog(LOG_ERR, "Failed to setup PMTU socket options!");
     goto free_and_return;
   }
-  
+
   ctx->uuid = strdup(uuid);
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
@@ -295,7 +295,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
 
   // Reset limits
   ctx->limit_bandwidth_down = 0;
-  
+
   // Reset all timers
   time_t now = timer_now();
   ctx->last_alive = now;
@@ -303,7 +303,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->timer_tunnel = now;
   ctx->timer_keepalive = now;
   ctx->timer_reinit = now;
-  
+
   // PMTU discovery
   ctx->pmtu = 0;
   ctx->probed_pmtu = 0;
@@ -311,25 +311,25 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->timer_pmtu_reprobe = now;
   ctx->timer_pmtu_collect = -1;
   ctx->timer_pmtu_xmit = -1;
-  
+
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
   if (!ctx->nl_sock) {
     syslog(LOG_ERR, "Failed to allocate a netlink socket!");
     goto free_and_return;
   }
-  
+
   if (nl_connect(ctx->nl_sock, NETLINK_GENERIC) < 0) {
     syslog(LOG_ERR, "Failed to connect to netlink!");
     goto free_and_return;
   }
-  
+
   ctx->nl_family = genl_ctrl_resolve(ctx->nl_sock, L2TP_GENL_NAME);
   if (ctx->nl_family < 0) {
     syslog(LOG_ERR, "Failed to resolve L2TP netlink interface - check if L2TP kernel modules are loaded!");
     goto free_and_return;
   }
-  
+
   return ctx;
 free_and_return:
   free(ctx);
@@ -342,17 +342,17 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (ctx->fd < 0)
     return -1;
-  
+
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0)
     return -1;
-  
+
   if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
     return -1;
-  
+
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
-  
+
   ctx->standby_available = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
@@ -361,14 +361,14 @@ int context_reinitialize(l2tp_context *ctx)
     free(ctx->reliable_unacked);
     ctx->reliable_unacked = next;
   }
-  
+
   // Reset relevant timers
   time_t now = timer_now();
   ctx->timer_cookie = now;
   ctx->timer_tunnel = now;
   ctx->timer_keepalive = now;
   ctx->timer_reinit = now;
-  
+
   // PMTU discovery
   ctx->pmtu = 0;
   ctx->probed_pmtu = 0;
@@ -376,7 +376,7 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->timer_pmtu_reprobe = now;
   ctx->timer_pmtu_collect = -1;
   ctx->timer_pmtu_xmit = -1;
-  
+
   return 0;
 }
 
@@ -384,7 +384,7 @@ void context_call_hook(l2tp_context *ctx, const char *hook)
 {
   if (ctx->hook == NULL)
     return;
-  
+
   int pid = fork();
   if (pid == 0) {
     execl(ctx->hook, ctx->hook, hook, ctx->tunnel_iface, (char*) NULL);
@@ -401,7 +401,7 @@ void context_limit_send_simple_request(l2tp_context *ctx, uint8_t type, uint32_t
   // Simple request are always a single 4 byte integer
   put_u8(&buf, 4);
   put_u32(&buf, limit);
-  
+
   // Now send the packet
   context_send_reliable_packet(ctx, CONTROL_TYPE_LIMIT, (char*) &buffer, 6);
 }
@@ -423,34 +423,34 @@ void context_process_control_packet(l2tp_context *ctx)
   socklen_t endpoint_len = sizeof(endpoint);
   ssize_t bytes = recvfrom(ctx->fd, &buffer, sizeof(buffer), 0, (struct sockaddr*) &endpoint,
     &endpoint_len);
-  
+
   if (bytes < 0)
     return;
-  
+
   // Decode packet header
   unsigned char *buf = (unsigned char*) &buffer;
   if (parse_u8(&buf) != 0x80 || parse_u16(&buf) != 0x73A7)
     return;
-  
+
   // Check version number
   if (parse_u8(&buf) != 1)
     return;
-  
+
   uint8_t type = parse_u8(&buf);
   uint8_t payload_length = parse_u8(&buf);
-  
+
   // Each received packet counts as a liveness indicator
   ctx->last_alive = timer_now();
-  
+
   // Check packet type
   switch (type) {
     case CONTROL_TYPE_COOKIE: {
       if (ctx->state == STATE_GET_COOKIE) {
         memcpy(&ctx->cookie, buf, payload_length);
-        
+
         // Mark the connection as being available for later establishment
         ctx->standby_available = 1;
-        
+
         // Only switch to tunnel establishment state if the context is
         // not in standby-only state
         if (!ctx->standby_only)
@@ -540,12 +540,12 @@ void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type,
   put_u8(&buf, len);
   if (payload)
     memcpy(buf, payload, len);
-  
+
   // Pad the packet to 12 bytes to avoid it being filtered by some firewalls
   // when used over port 53
   if (L2TP_CONTROL_SIZE + len < 12)
     len += 12 - L2TP_CONTROL_SIZE - len;
-  
+
   // Send the packet
   if (send(ctx->fd, buf, L2TP_CONTROL_SIZE + len, 0) < 0) {
     syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
@@ -610,14 +610,14 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
   char buffer[2048];
   if (size > 1500 || size < L2TP_CONTROL_SIZE)
     return;
-  
+
   unsigned char *buf = (unsigned char*) &buffer;
   put_u8(&buf, 0x80);
   put_u16(&buf, 0x73A7);
   put_u8(&buf, 1);
   put_u8(&buf, CONTROL_TYPE_PMTUD);
   put_u8(&buf, 0);
-  
+
   // Send the packet
   if (send(ctx->fd, &buffer, size - IPV4_HDR_OVERHEAD, 0) < 0) {
     syslog(LOG_WARNING, "Failed to send() PMTU probe packet (errno=%d)!", errno);
@@ -629,7 +629,7 @@ void context_pmtu_start_discovery(l2tp_context *ctx)
   size_t sizes[] = {
     500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500
   };
-  
+
   int i;
   for (i = 0; i < 9; i++) {
     context_send_pmtu_probe(ctx, sizes[i]);
@@ -640,23 +640,23 @@ void context_send_setup_request(l2tp_context *ctx)
 {
   char buffer[512];
   unsigned char *buf = (unsigned char*) &buffer;
-  
+
   // First 8 bytes of payload is the cookie value
   memcpy(buf, ctx->cookie, 8);
   buf += 8;
-  
+
   // Then comes the size-prefixed UUID
   size_t uuid_len = strlen(ctx->uuid);
   if (uuid_len > 255)
     uuid_len = 255;
-  
+
   put_u8(&buf, uuid_len);
   memcpy(buf, ctx->uuid, uuid_len);
   buf += uuid_len;
-  
+
   // And the local tunnel identifier at the end
   put_u16(&buf, ctx->tunnel_id);
-  
+
   // Now send the packet
   context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
 }
@@ -667,21 +667,21 @@ void context_delete_tunnel(l2tp_context *ctx)
   struct nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_SESSION_DELETE, L2TP_GENL_VERSION);
-  
+
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
-  
+
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
   nl_wait_for_ack(ctx->nl_sock);
-  
+
   // Delete the tunnel
   msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_TUNNEL_DELETE, L2TP_GENL_VERSION);
-  
+
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
-  
+
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
   nl_wait_for_ack(ctx->nl_sock);
@@ -693,38 +693,38 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   struct nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_TUNNEL_CREATE, L2TP_GENL_VERSION);
-  
+
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_PEER_CONN_ID, peer_tunnel_id);
   nla_put_u8(msg, L2TP_ATTR_PROTO_VERSION, 3);
   nla_put_u16(msg, L2TP_ATTR_ENCAP_TYPE, L2TP_ENCAPTYPE_UDP);
   nla_put_u32(msg, L2TP_ATTR_FD, ctx->fd);
-  
+
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
-  
+
   int result = nl_wait_for_ack(ctx->nl_sock);
   if (result < 0)
     return -1;
-  
+
   // Create a session (currently only a single session is supported)
   msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_SESSION_CREATE, L2TP_GENL_VERSION);
-  
+
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
   nla_put_u32(msg, L2TP_ATTR_PEER_SESSION_ID, 1);
   nla_put_u16(msg, L2TP_ATTR_PW_TYPE, L2TP_PWTYPE_ETH);
   nla_put_string(msg, L2TP_ATTR_IFNAME, ctx->tunnel_iface);
-  
+
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
-  
+
   result = nl_wait_for_ack(ctx->nl_sock);
   if (result < 0)
     return -1;
-  
+
   return 0;
 }
 
@@ -732,7 +732,7 @@ int context_session_set_mtu(l2tp_context *ctx, uint16_t mtu)
 {
   // Update the device MTU
   struct ifreq ifr;
-  
+
   memset(&ifr, 0, sizeof(ifr));
   strncpy(ifr.ifr_name, ctx->tunnel_iface, sizeof(ifr.ifr_name));
   ifr.ifr_mtu = mtu;
@@ -741,20 +741,20 @@ int context_session_set_mtu(l2tp_context *ctx, uint16_t mtu)
       ifr.ifr_name, errno);
     return -1;
   }
-  
+
   // Update session parameters
   struct nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
     L2TP_CMD_SESSION_MODIFY, L2TP_GENL_VERSION);
-  
+
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
   nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
   nla_put_u16(msg, L2TP_ATTR_MTU, mtu);
-  
+
   nl_send_auto_complete(ctx->nl_sock, msg);
   nlmsg_free(msg);
   nl_wait_for_ack(ctx->nl_sock);
-  
+
   return 0;
 }
 
@@ -762,7 +762,7 @@ void context_close_tunnel(l2tp_context *ctx)
 {
   // Notify the broker that the tunnel has been closed
   context_send_packet(ctx, CONTROL_TYPE_ERROR, NULL, 0);
-  
+
   // Call down hook, delete the tunnel and set state to reinit
   context_call_hook(ctx, "session.down");
   context_delete_tunnel(ctx);
@@ -776,16 +776,16 @@ void context_process(l2tp_context *ctx)
   struct timeval tv;
   tv.tv_sec = 1;
   tv.tv_usec = 0;
-  
+
   FD_ZERO(&rfds);
   FD_SET(ctx->fd, &rfds);
-  
+
   int res = select(ctx->fd + 1, &rfds, NULL, NULL, &tv);
   if (res == -1)
     return;
   else if (res)
     context_process_control_packet(ctx);
-  
+
   // Transmit packets if needed
   switch (ctx->state) {
     case STATE_GET_COOKIE: {
@@ -804,7 +804,7 @@ void context_process(l2tp_context *ctx)
       // Send periodic keepalive messages
       if (is_timeout(&ctx->timer_keepalive, 5))
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
-      
+
       // Send periodic PMTU probes
       if (is_timeout(&ctx->timer_pmtu_reprobe, ctx->pmtu_reprobe_interval)) {
         ctx->probed_pmtu = 0;
@@ -815,19 +815,19 @@ void context_process(l2tp_context *ctx)
         if (ctx->pmtu_reprobe_interval > 600)
           ctx->pmtu_reprobe_interval = 600;
       }
-      
+
       // Check if we need to collect PMTU probes
       if (is_timeout(&ctx->timer_pmtu_collect, 5)) {
         if (ctx->probed_pmtu > 0 && ctx->probed_pmtu != ctx->pmtu) {
           ctx->pmtu = ctx->probed_pmtu;
           context_session_set_mtu(ctx, ctx->pmtu - L2TP_TUN_OVERHEAD);
         }
-        
+
         ctx->probed_pmtu = 0;
         ctx->timer_pmtu_collect = -1;
         ctx->timer_pmtu_xmit = -1;
       }
-      
+
       if (is_timeout(&ctx->timer_pmtu_xmit, 1))
         context_pmtu_start_discovery(ctx);
 
@@ -855,7 +855,7 @@ void context_process(l2tp_context *ctx)
         prev = msg;
         msg = msg->next;
       }
-      
+
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 60) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
@@ -890,12 +890,12 @@ void term_handler(int signum)
   (void) signum; /* unused */
 
   syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
-  
+
   if (main_context) {
     context_close_tunnel(main_context);
     main_context = NULL;
   }
-  
+
   exit(1);
 }
 
@@ -930,20 +930,20 @@ int main(int argc, char **argv)
     fprintf(stderr, "ERROR: Root access is required to setup tunnels!\n");
     return 1;
   }
-  
+
   // Install signal handlers
   signal(SIGPIPE, SIG_IGN);
   signal(SIGINT, term_handler);
   signal(SIGTERM, term_handler);
   signal(SIGCHLD, child_handler);
-  
+
   // Parse program options
   int log_option = 0;
   char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL;
   char *hook = NULL;
   int tunnel_id = 1;
   int limit_bandwidth_down = 0;
-  
+
   // List of brokers
   typedef struct {
     char *address;
@@ -951,10 +951,10 @@ int main(int argc, char **argv)
     l2tp_context *ctx;
   } broker_cfg;
 #define MAX_BROKERS 10
-  
+
   broker_cfg brokers[MAX_BROKERS];
   int broker_cnt = 0;
-  
+
   char c;
   while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:")) != EOF) {
     switch (c) {
@@ -970,7 +970,7 @@ int main(int argc, char **argv)
           fprintf(stderr, "ERROR: You cannot specify more than %d brokers!\n", MAX_BROKERS);
           return 1;
         }
-        
+
         brokers[broker_cnt].address = strdup(strtok(optarg, ":"));
         brokers[broker_cnt].port = atoi(strtok(NULL, ":"));
         brokers[broker_cnt].ctx = NULL;
@@ -988,7 +988,7 @@ int main(int argc, char **argv)
       }
     }
   }
-  
+
   if (!uuid || broker_cnt < 1 || !tunnel_iface) {
     fprintf(stderr, "ERROR: UUID, tunnel interface and broker list are required options!\n");
     show_help(argv[0]);
@@ -997,7 +997,7 @@ int main(int argc, char **argv)
 
   // Open the syslog facility
   openlog("l2tp-client", log_option, LOG_DAEMON);
-  
+
   // Initialize contexts for all configured brokers in standby mode
   int i;
   for (i = 0; i < broker_cnt; i++) {
@@ -1008,34 +1008,34 @@ int main(int argc, char **argv)
     for (;;) {
       brokers[i].ctx = context_init(uuid, local_ip, brokers[i].address, brokers[i].port,
         tunnel_iface, hook, tunnel_id, 1);
-      
+
       if (!brokers[i].ctx) {
         if (++tries >= 120) {
           syslog(LOG_ERR, "Unable to initialize L2TP context! Aborting.");
           return 1;
         }
-        
+
         syslog(LOG_ERR, "Unable to initialize L2TP context! Retrying in 5 seconds...");
         sleep(5);
         continue;
       }
 
       brokers[i].ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
-      
+
       // Context successfully initialized
       break;
     }
   }
-  
+
   for (;;) {
     syslog(LOG_INFO, "Performing broker selection...");
-    
+
     // Reset availability information and standby setting
     for (i = 0; i < broker_cnt; i++) {
       brokers[i].ctx->standby_only = 1;
       brokers[i].ctx->standby_available = 0;
     }
-    
+
     // Perform broker processing for 20 seconds or until all brokers are ready
     // (whichever is shorter); since all contexts are in standby mode, all
     // available connections will be stuck in GET_COOKIE state
@@ -1047,11 +1047,11 @@ int main(int argc, char **argv)
         if (brokers[i].ctx->standby_available)
           ready_cnt++;
       }
-      
+
       if (ready_cnt == broker_cnt || (is_timeout(&timer_collect, 20) && ready_cnt > 0))
         break;
     }
-    
+
     // Select the first available broker and use it to establish a tunnel
     for (i = 0; i < broker_cnt; i++) {
       if (brokers[i].ctx->standby_available) {
@@ -1060,23 +1060,23 @@ int main(int argc, char **argv)
         break;
       }
     }
-    
+
     syslog(LOG_INFO, "Selected %s:%d as the best broker.", brokers[i].address,
       brokers[i].port);
-    
+
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process
     int restart_timer = 0;
     time_t timer_establish = timer_now();
     for (;;) {
       context_process(main_context);
-      
+
       // If the connection is lost, we start the reconnection timer
       if (restart_timer && main_context->state != STATE_KEEPALIVE) {
         timer_establish = timer_now();
         restart_timer = 0;
       }
-      
+
       // After 30 seconds, we check if the tunnel has been established
       if (is_timeout(&timer_establish, 30)) {
         if (main_context->state != STATE_KEEPALIVE) {
@@ -1084,12 +1084,12 @@ int main(int argc, char **argv)
           syslog(LOG_ERR, "Connection with broker not established after 30 seconds, restarting broker selection...");
           break;
         }
-        
+
         timer_establish = -1;
         restart_timer = 1;
       }
     }
-    
+
     // If we are here, the connection has been lost
     main_context = NULL;
   }
