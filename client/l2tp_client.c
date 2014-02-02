@@ -996,7 +996,7 @@ int main(int argc, char **argv)
   }
 
   // Open the syslog facility
-  openlog("l2tp-client", log_option, LOG_DAEMON);
+  openlog("td-client", log_option, LOG_DAEMON);
 
   // Initialize contexts for all configured brokers in standby mode
   int i;
@@ -1011,11 +1011,11 @@ int main(int argc, char **argv)
 
       if (!brokers[i].ctx) {
         if (++tries >= 120) {
-          syslog(LOG_ERR, "Unable to initialize L2TP context! Aborting.");
+          syslog(LOG_ERR, "Unable to initialize tunneldigger context! Aborting.");
           return 1;
         }
 
-        syslog(LOG_ERR, "Unable to initialize L2TP context! Retrying in 5 seconds...");
+        syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
         sleep(5);
         continue;
       }
