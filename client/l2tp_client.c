@@ -16,6 +16,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#define _GNU_SOURCE
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -24,6 +25,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <errno.h>
+#include <netdb.h>
 
 #include <sys/time.h>
 #include <sys/types.h>
@@ -94,6 +96,7 @@ enum l2tp_ctrl_state {
   STATE_GET_TUNNEL,
   STATE_KEEPALIVE,
   STATE_REINIT,
+  STATE_RESOLVING,
 };
 
 typedef struct reliable_message {
@@ -117,8 +120,13 @@ typedef struct {
   char *hook;
   // Local IP endpoint
   struct sockaddr_in local_endpoint;
-  // Broker IP endpoint
-  struct sockaddr_in broker_endpoint;
+  // Broker hostname
+  char *broker_hostname;
+  // Broker port (or service name)
+  char *broker_port;
+  // Broker hostname resolution
+  struct gaicb *broker_resrq[1];
+  struct addrinfo broker_reshints;
   // Tunnel's UDP socket file descriptor
   int fd;
   // Tunnel state
@@ -235,8 +243,8 @@ void put_u32(unsigned char **buffer, uint32_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_ip,
-  int broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
+l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_hostname,
+  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
   l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
   if (!ctx) {
@@ -244,7 +252,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     return NULL;
   }
 
-  ctx->state = STATE_GET_COOKIE;
+  ctx->state = STATE_RESOLVING;
 
   // Setup the UDP socket that we will use for connecting with the
   // broker and for data transport
@@ -261,20 +269,11 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     goto free_and_return;
   }
 
-  ctx->broker_endpoint.sin_family = AF_INET;
-  ctx->broker_endpoint.sin_port = htons(broker_port);
-  if (inet_aton(broker_ip, &ctx->broker_endpoint.sin_addr.s_addr) < 0) {
-    syslog(LOG_ERR, "Failed to parse remote endpoint!");
-    goto free_and_return;
-  }
+  ctx->broker_hostname = strdup(broker_hostname);
+  ctx->broker_port = strdup(broker_port);
 
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
-    goto free_and_return;
-  }
-
-  if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0) {
-    syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
     goto free_and_return;
   }
 
@@ -346,9 +345,6 @@ int context_reinitialize(l2tp_context *ctx)
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0)
     return -1;
 
-  if (connect(ctx->fd, (struct sockaddr*) &ctx->broker_endpoint, sizeof(ctx->broker_endpoint)) < 0)
-    return -1;
-
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
@@ -377,7 +373,38 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->timer_pmtu_collect = -1;
   ctx->timer_pmtu_xmit = -1;
 
+  ctx->state = STATE_RESOLVING;
+
   return 0;
+}
+
+void context_start_connect(l2tp_context *ctx)
+{
+  if (ctx->state != STATE_RESOLVING)
+    return;
+
+  if (!ctx->broker_resrq[0]) {
+    ctx->broker_resrq[0] = (struct gaicb*) malloc(sizeof(struct gaicb));
+    if (!ctx->broker_resrq[0]) {
+      syslog(LOG_ERR, "Failed to allocate memory for name resolution!");
+      exit(1);
+    }
+
+    memset(ctx->broker_resrq[0], 0, sizeof(struct gaicb));
+    ctx->broker_resrq[0]->ar_request = &ctx->broker_reshints;
+    ctx->broker_reshints.ai_family = AF_INET;
+    ctx->broker_reshints.ai_socktype = SOCK_DGRAM;
+  }
+
+  ctx->broker_resrq[0]->ar_name = ctx->broker_hostname;
+  ctx->broker_resrq[0]->ar_service = ctx->broker_port;
+
+  if (getaddrinfo_a(GAI_NOWAIT, ctx->broker_resrq, 1, NULL) != 0) {
+    syslog(LOG_ERR, "Failed to start name resolution!");
+    free(ctx->broker_resrq[0]);
+    ctx->broker_resrq[0] = NULL;
+    return;
+  }
 }
 
 void context_call_hook(l2tp_context *ctx, const char *hook)
@@ -788,6 +815,28 @@ void context_process(l2tp_context *ctx)
 
   // Transmit packets if needed
   switch (ctx->state) {
+    case STATE_RESOLVING: {
+      // Check if address has already been resolved and change state
+      if (ctx->broker_resrq[0]) {
+        int status =  gai_error(ctx->broker_resrq[0]);
+        if (status == EAI_INPROGRESS) {
+          return;
+        } else if (status != 0) {
+          syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
+          return context_start_connect(ctx);
+        }
+
+        // Resolution successfully completed; try connect to remote address
+        struct addrinfo *result = ctx->broker_resrq[0]->ar_result;
+        if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
+          syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
+          return context_start_connect(ctx);
+        }
+
+        ctx->state = STATE_GET_COOKIE;
+      }
+      break;
+    }
     case STATE_GET_COOKIE: {
       // Send request for a tasty cookie
       if (is_timeout(&ctx->timer_cookie, 2))
@@ -869,7 +918,7 @@ void context_process(l2tp_context *ctx)
         if (context_reinitialize(ctx) < 0) {
           syslog(LOG_ERR, "Unable to reinitialize the context!");
         } else {
-          ctx->state = STATE_GET_COOKIE;
+          context_start_connect(ctx);
         }
       }
       break;
@@ -882,6 +931,10 @@ void context_free(l2tp_context *ctx)
   free(ctx->uuid);
   free(ctx->tunnel_iface);
   free(ctx->hook);
+  free(ctx->broker_hostname);
+  free(ctx->broker_port);
+  if (ctx->broker_resrq[0] != NULL)
+    free(ctx->broker_resrq[0]);
   free(ctx);
 }
 
@@ -911,15 +964,15 @@ void show_help(const char *app)
 {
   fprintf(stderr, "usage: %s [options]\n", app);
   fprintf(stderr,
-    "       -h         this text\n"
-    "       -f         don't daemonize into background\n"
-    "       -u uuid    set UUID string\n"
-    "       -l ip      local IP address to bind to (default 0.0.0.0)\n"
-    "       -b ip:port broker IP address and port (can be specified multiple times)\n"
-    "       -i iface   tunnel interface name\n"
-    "       -s hook    hook script\n"
-    "       -t id      local tunnel id (default 1)\n"
-    "       -L limit   request broker to set downstream bandwidth limit (in kbps)\n"
+    "       -h            this text\n"
+    "       -f            don't daemonize into background\n"
+    "       -u uuid       set UUID string\n"
+    "       -l ip         local IP address to bind to (default 0.0.0.0)\n"
+    "       -b host:port  broker hostname and port (can be specified multiple times)\n"
+    "       -i iface      tunnel interface name\n"
+    "       -s hook       hook script\n"
+    "       -t id         local tunnel id (default 1)\n"
+    "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
   );
 }
 
@@ -947,7 +1000,7 @@ int main(int argc, char **argv)
   // List of brokers
   typedef struct {
     char *address;
-    int port;
+    char *port;
     l2tp_context *ctx;
   } broker_cfg;
 #define MAX_BROKERS 10
@@ -972,7 +1025,7 @@ int main(int argc, char **argv)
         }
 
         brokers[broker_cnt].address = strdup(strtok(optarg, ":"));
-        brokers[broker_cnt].port = atoi(strtok(NULL, ":"));
+        brokers[broker_cnt].port = strdup(strtok(NULL, ":"));
         brokers[broker_cnt].ctx = NULL;
         broker_cnt++;
         break;
@@ -1034,6 +1087,9 @@ int main(int argc, char **argv)
     for (i = 0; i < broker_cnt; i++) {
       brokers[i].ctx->standby_only = 1;
       brokers[i].ctx->standby_available = 0;
+
+      // Start hostname resolution and connect process
+      context_start_connect(brokers[i].ctx);
     }
 
     // Perform broker processing for 20 seconds or until all brokers are ready
@@ -1061,7 +1117,7 @@ int main(int argc, char **argv)
       }
     }
 
-    syslog(LOG_INFO, "Selected %s:%d as the best broker.", brokers[i].address,
+    syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
 
     // Perform processing on the main context; if the connection fails and does
