@@ -1,7 +1,7 @@
 all: l2tp_client
 
-l2tp_client: l2tp_client.o
-	$(CC) $(LDFLAGS) -o $@ $^ -lanl -lnl -lrt
+l2tp_client: l2tp_client.o asyncns.o
+	$(CC) $(LDFLAGS) -o $@ $^ -lpthread -lnl -lrt -lresolv
 
 %.o: %.c
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -c -I. -o $@ $<

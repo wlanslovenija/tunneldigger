@@ -47,6 +47,8 @@
 #include <linux/genetlink.h>
 #include <linux/l2tp.h>
 
+#include "asyncns.h"
+
 // If this is not defined, build fails on OpenWrt
 #define IP_PMTUDISC_PROBE 3
 
@@ -125,7 +127,7 @@ typedef struct {
   // Broker port (or service name)
   char *broker_port;
   // Broker hostname resolution
-  struct gaicb *broker_resrq[1];
+  asyncns_query_t *broker_resq;
   struct addrinfo broker_reshints;
   // Tunnel's UDP socket file descriptor
   int fd;
@@ -175,6 +177,7 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
 
 static l2tp_context *main_context = NULL;
+static asyncns_t *asyncns_context = NULL;
 
 time_t timer_now()
 {
@@ -291,6 +294,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->standby_available = 0;
   ctx->reliable_seqno = 0;
   ctx->reliable_unacked = NULL;
+  ctx->broker_resq = NULL;
 
   // Reset limits
   ctx->limit_bandwidth_down = 0;
@@ -357,6 +361,7 @@ int context_reinitialize(l2tp_context *ctx)
     free(ctx->reliable_unacked);
     ctx->reliable_unacked = next;
   }
+  ctx->broker_resq = NULL;
 
   // Reset relevant timers
   time_t now = timer_now();
@@ -383,26 +388,14 @@ void context_start_connect(l2tp_context *ctx)
   if (ctx->state != STATE_RESOLVING)
     return;
 
-  if (!ctx->broker_resrq[0]) {
-    ctx->broker_resrq[0] = (struct gaicb*) malloc(sizeof(struct gaicb));
-    if (!ctx->broker_resrq[0]) {
-      syslog(LOG_ERR, "Failed to allocate memory for name resolution!");
-      exit(1);
-    }
+  memset(&ctx->broker_reshints, 0, sizeof(struct addrinfo));
+  ctx->broker_reshints.ai_family = AF_INET;
+  ctx->broker_reshints.ai_socktype = SOCK_DGRAM;
+  ctx->broker_resq = asyncns_getaddrinfo(asyncns_context, ctx->broker_hostname, ctx->broker_port,
+    &ctx->broker_reshints);
 
-    memset(ctx->broker_resrq[0], 0, sizeof(struct gaicb));
-    ctx->broker_resrq[0]->ar_request = &ctx->broker_reshints;
-    ctx->broker_reshints.ai_family = AF_INET;
-    ctx->broker_reshints.ai_socktype = SOCK_DGRAM;
-  }
-
-  ctx->broker_resrq[0]->ar_name = ctx->broker_hostname;
-  ctx->broker_resrq[0]->ar_service = ctx->broker_port;
-
-  if (getaddrinfo_a(GAI_NOWAIT, ctx->broker_resrq, 1, NULL) != 0) {
+  if (!ctx->broker_resq) {
     syslog(LOG_ERR, "Failed to start name resolution!");
-    free(ctx->broker_resrq[0]);
-    ctx->broker_resrq[0] = NULL;
     return;
   }
 }
@@ -807,33 +800,42 @@ void context_process(l2tp_context *ctx)
   FD_ZERO(&rfds);
   FD_SET(ctx->fd, &rfds);
 
-  int res = select(ctx->fd + 1, &rfds, NULL, NULL, &tv);
-  if (res == -1)
+  // Add descriptor for DNS resolution
+  int nsfd = asyncns_fd(asyncns_context);
+  int nfds = nsfd > ctx->fd ? nsfd : ctx->fd;
+  FD_SET(nsfd, &rfds);
+
+  int res = select(nfds + 1, &rfds, NULL, NULL, &tv);
+  if (res == -1) {
     return;
-  else if (res)
-    context_process_control_packet(ctx);
+  } else if (res) {
+    if (FD_ISSET(ctx->fd, &rfds))
+      context_process_control_packet(ctx);
+    else if (FD_ISSET(nsfd, &rfds))
+      asyncns_wait(asyncns_context, 0);
+  }
 
   // Transmit packets if needed
   switch (ctx->state) {
     case STATE_RESOLVING: {
       // Check if address has already been resolved and change state
-      if (ctx->broker_resrq[0]) {
-        int status =  gai_error(ctx->broker_resrq[0]);
-        if (status == EAI_INPROGRESS) {
-          return;
-        } else if (status != 0) {
+      if (ctx->broker_resq && asyncns_isdone(asyncns_context, ctx->broker_resq)) {
+        struct addrinfo *result;
+        int status = asyncns_getaddrinfo_done(asyncns_context, ctx->broker_resq, &result);
+
+        if (status != 0) {
           syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
           return context_start_connect(ctx);
-        }
+        } else {
+          if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
+            syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
+            asyncns_freeaddrinfo(result);
+            return context_start_connect(ctx);
+          }
 
-        // Resolution successfully completed; try connect to remote address
-        struct addrinfo *result = ctx->broker_resrq[0]->ar_result;
-        if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
-          syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
-          return context_start_connect(ctx);
+          ctx->state = STATE_GET_COOKIE;
+          asyncns_freeaddrinfo(result);
         }
-
-        ctx->state = STATE_GET_COOKIE;
       }
       break;
     }
@@ -933,8 +935,6 @@ void context_free(l2tp_context *ctx)
   free(ctx->hook);
   free(ctx->broker_hostname);
   free(ctx->broker_port);
-  if (ctx->broker_resrq[0] != NULL)
-    free(ctx->broker_resrq[0]);
   free(ctx);
 }
 
@@ -1051,6 +1051,12 @@ int main(int argc, char **argv)
   // Open the syslog facility
   openlog("td-client", log_option, LOG_DAEMON);
 
+  // Initialize the async DNS resolver
+  if (!(asyncns_context = asyncns_new(2))) {
+    syslog(LOG_ERR, "Unable to initialize DNS resolver!");
+    return 1;
+  }
+
   // Initialize contexts for all configured brokers in standby mode
   int i;
   for (i = 0; i < broker_cnt; i++) {
@@ -1149,6 +1155,9 @@ int main(int argc, char **argv)
     // If we are here, the connection has been lost
     main_context = NULL;
   }
+
+  if (asyncns_context)
+    asyncns_free(asyncns_context);
 
   return 0;
 }
