@@ -570,8 +570,8 @@ class Tunnel(gevent.Greenlet):
     Sets up the L2TPv3 kernel tunnel for data transfer.
     """
     try:
-      self.socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
-      self.socket.bind((self.manager.address, self.port))
+      self.socket = gsocket.socket(gsocket.AF_INET6, gsocket.SOCK_DGRAM)
+      self.socket.bind(('', self.port))
       self.socket.connect(self.endpoint)
       self.socket.setsockopt(gsocket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_PROBE)
     except gsocket.error:
@@ -1091,8 +1091,8 @@ class BaseControl(gevent.Greenlet):
     """
     # Setup the base control socket that listens for initial incoming
     # tunnel setup requests
-    socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
-    socket.bind((self.manager.address, self.port))
+    socket = gsocket.socket(gsocket.AF_INET6, gsocket.SOCK_DGRAM)
+    socket.bind(('', self.port))
     
     while True:
       # Wait that some message becomes available from the socket
