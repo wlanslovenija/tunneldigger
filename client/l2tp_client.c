@@ -175,6 +175,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
+void context_free(l2tp_context *ctx);
 
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
@@ -249,7 +250,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
 l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_hostname,
   char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
-  l2tp_context *ctx = (l2tp_context*) malloc(sizeof(l2tp_context));
+  l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
     syslog(LOG_ERR, "Failed to allocate memory for context!");
     return NULL;
@@ -335,7 +336,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
 
   return ctx;
 free_and_return:
-  free(ctx);
+  context_free(ctx);
   return NULL;
 }
 
@@ -930,11 +931,24 @@ void context_process(l2tp_context *ctx)
 
 void context_free(l2tp_context *ctx)
 {
-  free(ctx->uuid);
-  free(ctx->tunnel_iface);
-  free(ctx->hook);
-  free(ctx->broker_hostname);
-  free(ctx->broker_port);
+  if (!ctx) {
+    return;
+  }
+  if (ctx->uuid) {
+    free(ctx->uuid);
+  }
+  if (ctx->uuid) {
+    free(ctx->tunnel_iface);
+  }
+  if (ctx->uuid) {
+    free(ctx->hook);
+  }
+  if (ctx->uuid) {
+    free(ctx->broker_hostname);
+  }
+  if (ctx->uuid) {
+    free(ctx->broker_port);
+  }
   free(ctx);
 }
 
