@@ -934,21 +934,12 @@ void context_free(l2tp_context *ctx)
   if (!ctx) {
     return;
   }
-  if (ctx->uuid) {
-    free(ctx->uuid);
-  }
-  if (ctx->uuid) {
-    free(ctx->tunnel_iface);
-  }
-  if (ctx->uuid) {
-    free(ctx->hook);
-  }
-  if (ctx->uuid) {
-    free(ctx->broker_hostname);
-  }
-  if (ctx->uuid) {
-    free(ctx->broker_port);
-  }
+
+  free(ctx->uuid);
+  free(ctx->tunnel_iface);
+  free(ctx->hook);
+  free(ctx->broker_hostname);
+  free(ctx->broker_port);
   free(ctx);
 }
 
