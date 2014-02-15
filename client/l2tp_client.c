@@ -1111,8 +1111,10 @@ int main(int argc, char **argv)
       int ready_cnt = 0;
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
-        if (brokers[i].ctx->standby_available)
-          ready_cnt++;
+      }
+
+      for (i = 0; i < broker_cnt; i++) {
+        ready_cnt += brokers[i].ctx->standby_available ? 1 : 0;
       }
 
       if (ready_cnt == broker_cnt || (is_timeout(&timer_collect, 20) && ready_cnt > 0))
