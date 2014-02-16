@@ -826,12 +826,14 @@ void context_process(l2tp_context *ctx)
 
         if (status != 0) {
           syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
-          return context_start_connect(ctx);
+          context_start_connect(ctx);
+          return;
         } else {
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
             syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
             asyncns_freeaddrinfo(result);
-            return context_start_connect(ctx);
+            context_start_connect(ctx);
+            return;
           }
 
           ctx->state = STATE_GET_COOKIE;
