@@ -173,15 +173,15 @@ class NetlinkInterface(object):
       self.family_id = controller.get_family_id(L2TP_GENL_NAME)
     except OSError:
       raise L2TPSupportUnavailable
-  
-  def _create_message(self, command, attributes, flags = netlink.NLM_F_REQUEST | netlink.NLM_F_ACK): 
+
+  def _create_message(self, command, attributes, flags = netlink.NLM_F_REQUEST | netlink.NLM_F_ACK):
     return genetlink.GeNlMessage(self.family_id, cmd = command, version = L2TP_GENL_VERSION,
       attrs = attributes, flags = flags)
-  
+
   def tunnel_create(self, tunnel_id, peer_tunnel_id, socket):
     """
     Creates a new L2TP tunnel.
-    
+
     :param tunnel_id: Local tunnel identifier
     :param peer_tunnel_id: Remote peer tunnel identifier
     :param socket: UDP socket file descriptor
@@ -194,7 +194,7 @@ class NetlinkInterface(object):
       netlink.U32Attr(L2TP_ATTR_FD, socket),
     ])
     msg.send(self.connection)
-    
+
     try:
       reply = self.connection.recv()
     except OSError, e:
@@ -202,26 +202,26 @@ class NetlinkInterface(object):
         # This tunnel identifier is already in use; make sure to remove it from
         # our pool of assignable tunnel identifiers
         raise L2TPTunnelExists
-      
+
       raise NetlinkError
-  
+
   def tunnel_delete(self, tunnel_id):
     """
     Deletes an existing tunnel.
-    
+
     :param tunnel_id: Local tunnel identifier
     """
     msg = self._create_message(L2TP_CMD_TUNNEL_DELETE, [
       netlink.U32Attr(L2TP_ATTR_CONN_ID, tunnel_id),
     ])
     msg.send(self.connection)
-    
+
     try:
       reply = self.connection.recv()
     except OSError:
       logger.debug(traceback.format_exc())
       logger.warning("Unable to remove tunnel %d!" % tunnel_id)
-  
+
   def tunnel_list(self):
     """
     Returns a list of tunnel identifiers.
@@ -230,16 +230,16 @@ class NetlinkInterface(object):
     msg = self._create_message(L2TP_CMD_TUNNEL_GET, [],
       flags = netlink.NLM_F_REQUEST | netlink.NLM_F_DUMP | netlink.NLM_F_ACK)
     msg.send(self.connection)
-    
+
     for tunnel in genetlink.GeNlMessage.recv(self.connection, multiple = True):
       tunnels.append(tunnel.attrs[L2TP_ATTR_CONN_ID].u32())
-    
+
     return tunnels
-  
+
   def session_create(self, tunnel_id, session_id, peer_session_id, name):
     """
     Creates a new ethernet session over the tunnel.
-    
+
     :param tunnel_id: Local tunnel identifier
     :param session_id: Local session identifier
     :param peer_session_id: Remote peer session identifier
@@ -254,16 +254,16 @@ class NetlinkInterface(object):
       netlink.NulStrAttr(L2TP_ATTR_IFNAME, name),
     ])
     msg.send(self.connection)
-    
+
     try:
       reply = self.connection.recv()
     except OSError, e:
       raise NetlinkError
-  
+
   def session_delete(self, tunnel_id, session_id):
     """
     Deletes an existing session.
-    
+
     :param tunnel_id: Local tunnel identifier
     :param session_id: Local session identifier
     """
@@ -272,17 +272,17 @@ class NetlinkInterface(object):
       netlink.U32Attr(L2TP_ATTR_SESSION_ID, session_id),
     ])
     msg.send(self.connection)
-    
+
     try:
       reply = self.connection.recv()
     except OSError:
       logger.debug(traceback.format_exc())
       logger.warning("Unable to remove tunnel %d session %d!" % (tunnel_id, session_id))
-  
+
   def session_modify(self, tunnel_id, session_id, mtu):
     """
     Modifies an existing session.
-    
+
     :param tunnel_id: Local tunnel identifier
     :param session_id: Local session identifier
     """
@@ -292,13 +292,13 @@ class NetlinkInterface(object):
       netlink.U16Attr(L2TP_ATTR_MTU, mtu),
     ])
     msg.send(self.connection)
-    
+
     try:
       reply = self.connection.recv()
     except OSError:
       logger.debug(traceback.format_exc())
       logger.warning("Unable to modify tunnel %d session %d!" % (tunnel_id, session_id))
-  
+
   def session_list(self):
     """
     Returns a list of session identifiers for each tunnel.
@@ -307,12 +307,12 @@ class NetlinkInterface(object):
     msg = self._create_message(L2TP_CMD_SESSION_GET, [],
       flags = netlink.NLM_F_REQUEST | netlink.NLM_F_DUMP | netlink.NLM_F_ACK)
     msg.send(self.connection)
-    
+
     for session in genetlink.GeNlMessage.recv(self.connection, multiple = True):
       sessions.append(
         (session.attrs[L2TP_ATTR_CONN_ID].u32(), session.attrs[L2TP_ATTR_SESSION_ID].u32())
-      ) 
-    
+      )
+
     return sessions
 
 class Limits(object):
@@ -364,7 +364,7 @@ class Tunnel(gevent.Greenlet):
   def __init__(self, manager, port):
     """
     Class constructor.
-    
+
     :param port: External port
     :param manager: An instance of TunnelManager
     """
@@ -376,7 +376,7 @@ class Tunnel(gevent.Greenlet):
     self.sessions = {}
     self.next_session_id = 1
     self.keep_alive()
-    
+
   def setup(self):
     """
     Setup the tunnel and netfilter rules.
@@ -389,11 +389,11 @@ class Tunnel(gevent.Greenlet):
       # to execute - so we don't get lingering tunnels
       self.socket.close()
       raise
-    
+
     # Spawn periodic keepalive transmitter and PMTUD
     self.keep_alive_do = gevent.spawn(self._keep_alive_do)
     self.pmtu_probe_do = gevent.spawn(self._pmtu_probe_do)
-  
+
   def _keep_alive_do(self):
     """
     Periodically transmits keepalives over the tunnel and checks
@@ -401,7 +401,7 @@ class Tunnel(gevent.Greenlet):
     """
     while True:
       self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE)
-      
+
       # Check if we are still alive or not; if not, kill the tunnel
       timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")
       if datetime.datetime.now() - self.last_alive > datetime.timedelta(seconds = timeout_interval):
@@ -410,26 +410,26 @@ class Tunnel(gevent.Greenlet):
             self.endpoint[1]))
         else:
           logger.warning("Session with tunnel %d timed out." % self.id)
-        
+
         gevent.spawn(self.manager.close_tunnel, self)
         return
-      
+
       gevent.sleep(5.0)
-  
+
   def _pmtu_probe_do(self):
     """
     Periodically probes PMTU.
     """
     if not self.manager.config.getboolean("broker", "pmtu_discovery"):
       return
-    
+
     probe_interval = 15
     while True:
       gevent.sleep(probe_interval)
-      
+
       # Reset measured PMTU
       self.probed_pmtu = 0
-      
+
       # Transmit PMTU probes of different sizes multiple times
       for _ in xrange(4):
         for size in [500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500]:
@@ -443,13 +443,13 @@ class Tunnel(gevent.Greenlet):
             ))
             # We need to subtract 6 because ControlMessage gets auto-padded to 12 bytes
             msg += '\x00' * (size - IPV4_HDR_OVERHEAD - L2TP_CONTROL_SIZE - 6)
-            
+
             self.socket.send(msg)
           except gsocket.error:
             pass
-        
+
         gevent.sleep(1)
-      
+
       # Collect all acknowledgements
       gevent.sleep(1)
       detected_pmtu = self.probed_pmtu - L2TP_TUN_OVERHEAD
@@ -457,17 +457,17 @@ class Tunnel(gevent.Greenlet):
         # Alter MTU for all sessions
         for session in self.sessions.values():
           self.manager.session_set_mtu(self, session, detected_pmtu)
-          
+
           # Invoke MTU change hook for each session
           self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
             detected_pmtu)
-        
+
         logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
         self.pmtu = detected_pmtu
-      
+
       # Increase probe interval until it reaches 10 minutes
       probe_interval = min(600, probe_interval * 2)
-  
+
   def _run(self):
     """
     Starts listening for control messages via the tunnel socket.
@@ -480,25 +480,25 @@ class Tunnel(gevent.Greenlet):
         if e.errno == 90:
           # Ignore EMSGSIZE errors as they ocurr when performing PMTU discovery
           # and remote nodes send us ICMP fragmentation needed messages
-          continue 
+          continue
         elif e.errno != 9:
           if self.manager.config.getboolean('log', 'log_ip_addresses'):
-            logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror, 
+            logger.error("Socket error %d (%s) in tunnel %d with %s:%d!" % (e.errno, e.strerror,
               self.id, self.endpoint[0], self.endpoint[1]))
           else:
             logger.error("Socket error %d (%s) in tunnel %d!" % (e.errno, e.strerror, self.id))
         else:
           logger.info("Closing control channel for tunnel %d." % self.id)
-        
+
         return
-      
+
       if address != self.endpoint:
         # Ignore messages from unknown sources
         continue
-      
+
       # All packets count as liveness indicators
       self.keep_alive()
-      
+
       msg = self.handler.handle(self.socket, data, address)
       if msg is None:
         # Message has been handled or is invalid
@@ -510,14 +510,14 @@ class Tunnel(gevent.Greenlet):
       elif msg.type == CONTROL_TYPE_PMTUD:
         if not self.manager.config.getboolean("broker", "pmtu_discovery"):
           continue
-        
+
         # Reply with ACK packet
         self.handler.send_message(self.socket, CONTROL_TYPE_PMTUD_ACK,
           cs.UBInt16("size").build(len(data)))
       elif msg.type == CONTROL_TYPE_PMTUD_ACK:
         # Decode ACK packet and extract size
         psize = cs.UBInt16("size").parse(msg.data) + IPV4_HDR_OVERHEAD
-        
+
         if psize > self.probed_pmtu:
           self.probed_pmtu = psize
       elif msg.type & MASK_CONTROL_TYPE_RELIABLE:
@@ -536,35 +536,35 @@ class Tunnel(gevent.Greenlet):
           if not self.limits.configure(limit):
             logger.warning("Unknown type of limit (%d) requested on tunnel %d." % (limit.type, self.id))
             return
-  
+
   def close(self, kill = True):
     """
     Close the tunnel and remove all mappings.
     """
     self.keep_alive_do.kill()
     self.pmtu_probe_do.kill()
-    
+
     for session in self.sessions.values():
       # Invoke any pre-down hooks
       self.manager.hook('session.pre-down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
         self.endpoint[1], self.port)
-      
+
       self.manager.netlink.session_delete(self.id, session.id)
-      
+
       # Invoke any down hooks
       self.manager.hook('session.down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
         self.endpoint[1], self.port)
-    
+
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
     self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
-    
+
     self.socket.close()
     self.remove_netfilter()
-    
+
     if kill:
       self.kill()
-  
+
   def setup_tunnel(self):
     """
     Sets up the L2TPv3 kernel tunnel for data transfer.
@@ -576,11 +576,11 @@ class Tunnel(gevent.Greenlet):
       self.socket.setsockopt(gsocket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_PROBE)
     except gsocket.error:
       raise TunnelSetupFailed
-    
+
     # Setup some default values for PMTU
     self.pmtu = 1446
     self.probed_pmtu = 0
-    
+
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
       self.manager.netlink.tunnel_create(self.id, self.peer_id, self.socket.fileno())
@@ -591,7 +591,7 @@ class Tunnel(gevent.Greenlet):
     except NetlinkError:
       self.socket.close()
       raise TunnelSetupFailed
-  
+
   def call_session_up_hooks(self):
     """
     Invokes any registered session establishment hooks for all sessions. This
@@ -602,7 +602,7 @@ class Tunnel(gevent.Greenlet):
     for session in self.sessions.values():
       self.manager.hook('session.up', self.id, session.id, session.name, self.pmtu,
         self.endpoint[0], self.endpoint[1], self.port)
-  
+
   def create_session(self):
     """
     Creates a new session over this tunnel.
@@ -610,19 +610,19 @@ class Tunnel(gevent.Greenlet):
     session = Session()
     session.id = self.next_session_id
     session.peer_id = session.id
-    session.name = "l2tp%d%d" % (self.id, session.id) 
+    session.name = "l2tp%d%d" % (self.id, session.id)
     self.sessions[session.id] = session
     self.next_session_id += 1
-    
+
     try:
       self.manager.netlink.session_create(self.id, session.id, session.peer_id,
         session.name)
     except:
       del self.sessions[session.id]
       raise
-    
+
     return session
-  
+
   def setup_netfilter(self):
     """
     Sets up the netfilter rules for port translation.
@@ -637,7 +637,7 @@ class Tunnel(gevent.Greenlet):
       ],
       jump = netfilter.rule.Target('DNAT', '--to %s:%d' % (self.manager.address, self.port))
     )
-    
+
     self.postrouting_rule = netfilter.rule.Rule(
       out_interface = self.manager.interface,
       protocol = 'udp',
@@ -648,7 +648,7 @@ class Tunnel(gevent.Greenlet):
       ],
       jump = netfilter.rule.Target('SNAT', '--to %s:%d' % (self.manager.address, self.external_port))
     )
-    
+
     try:
       nat = netfilter.table.Table('nat')
       nat.append_rule('L2TP_PREROUTING_%s' % self.manager.namespace, self.prerouting_rule)
@@ -679,7 +679,7 @@ class Tunnel(gevent.Greenlet):
       nat.delete_rule('L2TP_POSTROUTING_%s' % self.manager.namespace, self.postrouting_rule)
     except netfilter.table.IptablesError:
       pass
-  
+
   def keep_alive(self):
     """
     Marks this tunnel as alive at this moment.
@@ -690,7 +690,7 @@ class TunnelManager(object):
   def __init__(self, config):
     """
     Class constructor.
-    
+
     :param config: The configuration object
     """
     logger.info("Setting up the tunnel manager...")
@@ -712,7 +712,7 @@ class TunnelManager(object):
     self.setup_tunnels()
     self.setup_netfilter()
     self.setup_hooks()
-    
+
     # Log some configuration variables
     logger.info("  Maximum number of tunnels: %d" % self.max_tunnels)
     logger.info("  Interface: %s" % self.interface)
@@ -720,7 +720,7 @@ class TunnelManager(object):
     logger.info("  Ports: %s" % self.ports)
     logger.info("  Namespace: %s" % self.namespace)
     logger.info("Tunnel manager initialized.")
-  
+
   def setup_hooks(self):
     """
     Sets up any registered hooks.
@@ -728,22 +728,22 @@ class TunnelManager(object):
     self.hooks = {}
     for hook, script in self.config.items('hooks'):
       self.hooks[hook] = script
-  
+
   def hook(self, name, *args):
     """
     Executes a given hook. All additional arguments are passed to the
     hook as script arguments.
-    
+
     :param name: Hook name (like session.pre-up)
     """
     script = self.hooks.get(name, None)
     if not script:
       return
-    
+
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
     gevent.subprocess.call([script] + [str(x) for x in args])
-  
+
   def setup_tunnels(self):
     """
     Cleans up any stale tunnels that exist.
@@ -752,12 +752,12 @@ class TunnelManager(object):
       if tunnel_id in self.tunnel_ids:
         logger.warning("Removing existing tunnel %d session %d." % (tunnel_id, session_id))
         self.netlink.session_delete(tunnel_id, session_id)
-    
+
     for tunnel_id in self.netlink.tunnel_list():
       if tunnel_id in self.tunnel_ids:
         logger.warning("Removing existing tunnel %d." % tunnel_id)
         self.netlink.tunnel_delete(tunnel_id)
-  
+
   def setup_netfilter(self):
     """
     Sets up netfilter rules so new packets to the same port are redirected
@@ -768,19 +768,19 @@ class TunnelManager(object):
     nat = netfilter.table.Table('nat')
     self.rule_prerouting_jmp = netfilter.rule.Rule(jump = prerouting_chain)
     self.rule_postrouting_jmp = netfilter.rule.Rule(jump = postrouting_chain)
-    
+
     try:
       nat.flush_chain(prerouting_chain)
       nat.delete_chain(prerouting_chain)
     except netfilter.table.IptablesError:
       pass
-    
+
     try:
       nat.flush_chain(postrouting_chain)
       nat.delete_chain(postrouting_chain)
     except netfilter.table.IptablesError:
       pass
-    
+
     nat.create_chain(prerouting_chain)
     nat.create_chain(postrouting_chain)
     try:
@@ -788,17 +788,17 @@ class TunnelManager(object):
     except netfilter.table.IptablesError:
       pass
     nat.append_rule('PREROUTING', self.rule_prerouting_jmp)
-    
+
     try:
       nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
     except netfilter.table.IptablesError:
       pass
     nat.append_rule('POSTROUTING', self.rule_postrouting_jmp)
-    
+
     # Clear out the connection tracking tables
     self.conntrack.killall(proto = conntrack.IPPROTO_UDP, src = self.address)
     self.conntrack.killall(proto = conntrack.IPPROTO_UDP, dst = self.address)
-  
+
   def restore_netfilter(self):
     """
     Removes previously setup netfilter rules.
@@ -808,17 +808,17 @@ class TunnelManager(object):
     nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
     nat.delete_chain('L2TP_PREROUTING_%s' % self.namespace)
     nat.delete_chain('L2TP_POSTROUTING_%s' % self.namespace)
-  
+
   def close(self):
     """
     Closes all tunnels and performs the necessary cleanup.
     """
     if self.closed:
       return
-    
+
     self.closed = True
     logger.info("Closing the tunnel manager...")
-    
+
     # Ensure that all tunnels get closed
     for tunnel in self.tunnels.values():
       try:
@@ -830,44 +830,44 @@ class TunnelManager(object):
         logger.warning("Failed to close tunnel!")
         logger.debug(traceback.format_exc())
         continue
-    
+
     self.restore_netfilter()
     # Close any stale tunnels that might still be up
     id_base = config.getint('broker', 'tunnel_id_base')
     self.tunnel_ids = range(id_base, id_base + self.max_tunnels + 1)
     self.setup_tunnels()
-  
+
   def issue_cookie(self, endpoint):
     """
     Issues a new cookie for the given endpoint.
-    
+
     :param endpoint: Endpoint tuple
     :return: Some random cookie data (8 bytes)
     """
     cookie = self.cookies.get(endpoint)
     if cookie is not None:
       return cookie
-    
+
     cookie = os.urandom(8)
     self.cookies.put(endpoint, cookie)
     return cookie
-  
+
   def verify_cookie(self, endpoint, cookie):
     """
     Verifies if the endpoint has generated a valid cookie.
-    
+
     :param endpoint: Cookie
     """
     vcookie = self.cookies.get(endpoint)
     if not vcookie:
       return False
-    
+
     return vcookie == cookie
-  
+
   def session_set_mtu(self, tunnel, session, mtu):
     """
     Sets MTU values for a specific device.
-    
+
     :param tunnel: Tunnel instance
     :param session: Session instance
     :param mtu: Wanted MTU
@@ -878,24 +878,24 @@ class TunnelManager(object):
       fcntl.ioctl(tunnel.socket, SIOCSIFMTU, data)
     except IOError:
       logger.warning("Failed to set MTU for tunnel %d! Is the interface down?" % tunnel.id)
-    
+
     self.netlink.session_modify(tunnel.id, session.id, mtu)
-  
+
   def close_tunnel(self, tunnel):
     """
     Closes an existing tunnel.
-    
+
     :param Tunnel tunnel: A tunnel instance that should be closed
     """
     if tunnel.endpoint not in self.tunnels:
       return
-    
+
     if self.config.getboolean('log', 'log_ip_addresses'):
       logger.info("Closing tunnel %d to %s:%d." % (tunnel.id, tunnel.endpoint[0],
         tunnel.endpoint[1]))
     else:
       logger.info("Closing tunnel %d." % (tunnel.id))
-    
+
     try:
       tunnel.close()
     except:
@@ -904,23 +904,23 @@ class TunnelManager(object):
           tunnel.endpoint[0], tunnel.endpoint[1]))
       else:
         logger.error("Exception while closing tunnel %d!" % tunnel.id)
-      
+
       logger.debug(traceback.format_exc())
-    
+
     del self.tunnels[tunnel.endpoint]
     self.tunnel_ids.append(tunnel.id)
-  
+
   def setup_tunnel(self, port, endpoint, uuid, cookie, tunnel_id):
     """
     Sets up a new tunnel or returns the data for an existing
     tunnel.
-    
+
     :param port: External port the tunnel has connected to
     :param endpoint: Tuple (ip, port) representing the endpoint
     :param uuid: Endpoint's UUID
     :param cookie: A random cookie used for this tunnel
     :param tunnel_id: Peer tunnel identifier
-    
+
     :return: A tuple (tunnel, created) where tunnel is a Tunnel
       descriptor and created is a boolean flag indicating if a new
       tunnel has just been created; (None, False) if something went
@@ -928,20 +928,20 @@ class TunnelManager(object):
     """
     if endpoint in self.tunnels:
       tunnel = self.tunnels[endpoint]
-      
+
       # Check if UUID is a match and abort if it isn't; we should
       # not overwrite endpoints
       if tunnel.uuid != uuid:
         return None, False
-      
+
       # Check if peer tunnel id is a match and abort if it isn't
       if tunnel.peer_id != tunnel_id:
         return None, False
-      
+
       # Update tunnel's liveness
       tunnel.keep_alive()
       return tunnel, False
-    
+
     # Tunnel has not yet been created, create a new tunnel
     try:
       tunnel = Tunnel(self, port)
@@ -966,12 +966,12 @@ class TunnelManager(object):
       logger.error("Failed to setup tunnel with id %d!" % tunnel.id)
       self.tunnel_ids.append(tunnel.id)
       return None, False
-    
+
     if self.config.getboolean('log', 'log_ip_addresses'):
       logger.info("New tunnel (id=%d uuid=%s) created with %s." % (tunnel.id, tunnel.uuid, tunnel.endpoint[0]))
     else:
       logger.info("New tunnel (id=%d uuid=%s) created." % (tunnel.id, tunnel.uuid))
-    
+
     self.tunnels[endpoint] = tunnel
     tunnel.start()
     return tunnel, True
@@ -980,7 +980,7 @@ class MessageHandler(object):
   def __init__(self, manager, port, tunnel = None):
     """
     Class constructor.
-    
+
     :param manager: TunnelManager instance
     :param port: External port used to receive messages
     :param tunnel: Optional Tunnel instance
@@ -988,11 +988,11 @@ class MessageHandler(object):
     self.manager = manager
     self.port = port
     self.tunnel = tunnel
-  
+
   def send_message(self, socket, type, data = "", address = None):
     """
     Builds and sends a control message.
-    
+
     :param socket: Socket to use for outgoing messages
     :param type: Message type
     :param data: Optional payload
@@ -1005,7 +1005,7 @@ class MessageHandler(object):
       type = type,
       data = data
     ))
-    
+
     try:
       if address is not None:
         socket.sendto(msg, address)
@@ -1013,11 +1013,11 @@ class MessageHandler(object):
         socket.send(msg)
     except gsocket.error, e:
       logger.error("Failed to send() control message: %s (%d)" % (e.strerror, e.errno))
-  
+
   def handle(self, socket, data, address):
     """
     Handles a single message of the control protocol.
-    
+
     :param socket: Socket to use for outgoing messages
     :param data: Data that has been received
     :param address: Address where data has been received from
@@ -1028,14 +1028,14 @@ class MessageHandler(object):
       msg = ControlMessage.parse(data)
     except cs.ConstructError:
       return
-    
+
     # Parsing successful check message type
     if msg.type == CONTROL_TYPE_COOKIE:
       # Cookie request, ensure that the payload is at least 8 bytes, so
       # this protocol will not be a DoS amplifier by spamming with cookies
       if len(msg.data) < 8:
         return
-      
+
       # Respond with a cookie
       self.send_message(socket, CONTROL_TYPE_COOKIE, self.manager.issue_cookie(address),
         address)
@@ -1045,26 +1045,26 @@ class MessageHandler(object):
         prepare = PrepareMessage.parse(msg.data)
       except cs.ConstructError:
         return
-      
+
       # Check for a cookie match
       if not self.manager.verify_cookie(address, prepare.cookie):
         return
-      
+
       # First check if this tunnel has already been prepared
       tunnel, created = self.manager.setup_tunnel(self.port, address, prepare.uuid,
         prepare.cookie, prepare.tunnel_id or 1)
       if tunnel is None:
         self.send_message(socket, CONTROL_TYPE_ERROR, address = address)
         return
-      
+
       self.send_message(socket, CONTROL_TYPE_TUNNEL, cs.UBInt32("tunnel_id").build(tunnel.id),
         address)
-      
+
       if self.tunnel is None and created:
         # Clear conntrack tables so all new packets are evaluated against the
         # netfilter rules and so redirected into the tunnel
         tunnel.clear_conntrack()
-        
+
         # Invoke any session up hooks
         tunnel.call_session_up_hooks()
     else:
@@ -1075,7 +1075,7 @@ class BaseControl(gevent.Greenlet):
   def __init__(self, manager, port):
     """
     Class constructor.
-    
+
     :param manager: Tunnel manager instance
     :param port: External port
     """
@@ -1083,7 +1083,7 @@ class BaseControl(gevent.Greenlet):
     self.manager = manager
     self.port = port
     self.handler = MessageHandler(manager, port)
-  
+
   def _run(self):
     """
     Sets up the main control socket and starts processing incoming
@@ -1093,14 +1093,14 @@ class BaseControl(gevent.Greenlet):
     # tunnel setup requests
     socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
     socket.bind((self.manager.address, self.port))
-    
+
     while True:
       # Wait that some message becomes available from the socket
       try:
         data, address = socket.recvfrom(1024)
       except gsocket.error:
         continue
-      
+
       self.handler.handle(socket, data, address)
 
 if __name__ == '__main__':
@@ -1109,7 +1109,7 @@ if __name__ == '__main__':
     if os.getuid() != 0:
       print "ERROR: Must be root."
       sys.exit(1)
-    
+
     # Parse configuration (first argument must be the location of the configuration
     # file)
     config = ConfigParser.SafeConfigParser()
@@ -1121,7 +1121,7 @@ if __name__ == '__main__':
     except IndexError:
       print "ERROR: First argument must be a configuration file path!"
       sys.exit(1)
-    
+
     # Setup the logger
     logging.basicConfig(
       level = getattr(logging, config.get("log", "verbosity")),
@@ -1132,7 +1132,7 @@ if __name__ == '__main__':
     )
     logging.root.handlers[0].addFilter(logging.Filter('tunneldigger'))
     logger = logging.getLogger("tunneldigger.broker")
-    
+
     # Setup the base control server
     manager = TunnelManager(config)
     bases = []
@@ -1140,18 +1140,18 @@ if __name__ == '__main__':
       base = BaseControl(manager, port)
       base.start()
       bases.append(base)
-    
+
     def shutdown_broker():
       if manager.closed:
         return
-      
+
       manager.close()
       for base in bases:
         base.kill()
-    
+
     gevent.signal(signal.SIGTERM, shutdown_broker)
     gevent.signal(signal.SIGINT, shutdown_broker)
-    
+
     try:
       for base in bases:
         base.join()
