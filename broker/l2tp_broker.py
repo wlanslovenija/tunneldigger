@@ -742,7 +742,11 @@ class TunnelManager(object):
 
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
-    gevent.subprocess.call([script] + [str(x) for x in args])
+    try:
+      gevent.subprocess.call([script] + [str(x) for x in args])
+    except:
+      logger.warning("Failed to execute hook '%s'!" % script)
+      logger.warning(traceback.format_exc())
 
   def setup_tunnels(self):
     """
