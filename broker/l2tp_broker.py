@@ -374,7 +374,7 @@ class Tunnel(gevent.Greenlet):
     self.external_port = port
     self.limits = Limits(self)
     self.sessions = {}
-    self.next_session_id = 1
+    self.next_session_id = 2
     self.keep_alive()
 
   def setup(self):
