@@ -832,7 +832,7 @@ void context_process(l2tp_context *ctx)
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
             syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
             asyncns_freeaddrinfo(result);
-            context_start_connect(ctx);
+            ctx->state = STATE_REINIT;
             return;
           }
 
