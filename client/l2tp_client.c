@@ -918,7 +918,7 @@ void context_process(l2tp_context *ctx)
       break;
     }
     case STATE_REINIT: {
-      if (is_timeout(&ctx->timer_reinit, 60)) {
+      if (is_timeout(&ctx->timer_reinit, 15)) {
         syslog(LOG_INFO, "Reinitializing tunnel context.");
         if (context_reinitialize(ctx) < 0) {
           syslog(LOG_ERR, "Unable to reinitialize the context!");
