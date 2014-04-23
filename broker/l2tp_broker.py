@@ -791,13 +791,13 @@ class TunnelManager(object):
       nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
     except netfilter.table.IptablesError:
       pass
-    nat.append_rule('PREROUTING', self.rule_prerouting_jmp)
+    nat.prepend_rule('PREROUTING', self.rule_prerouting_jmp)
 
     try:
       nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
     except netfilter.table.IptablesError:
       pass
-    nat.append_rule('POSTROUTING', self.rule_postrouting_jmp)
+    nat.prepend_rule('POSTROUTING', self.rule_postrouting_jmp)
 
     # Clear out the connection tracking tables
     self.conntrack.killall(proto = conntrack.IPPROTO_UDP, src = self.address)
