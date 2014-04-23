@@ -477,7 +477,7 @@ class Tunnel(gevent.Greenlet):
       try:
         data, address = self.socket.recvfrom(2048)
       except gsocket.error, e:
-        if e.errno == 90:
+        if e.errno in (90, 97):
           # Ignore EMSGSIZE errors as they ocurr when performing PMTU discovery
           # and remote nodes send us ICMP fragmentation needed messages
           continue
