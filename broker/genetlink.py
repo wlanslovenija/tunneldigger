@@ -52,9 +52,12 @@ class GeNlMessage(Message):
         genlmsgs = []
         if not multiple:
             msgs = [msgs]
-        
+
         for msg in msgs:
             packet = msg.payload
+            if not packet:
+                continue
+
             hdr = _genl_hdr_parse(packet[:4])
 
             genlmsg = GeNlMessage(msg.type, hdr.cmd, [], msg.flags)
@@ -64,7 +67,7 @@ class GeNlMessage(Message):
 
         if not multiple:
             return genlmsgs[0]
-         
+
         return genlmsgs
 
 class Controller:
