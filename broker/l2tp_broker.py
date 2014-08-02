@@ -149,6 +149,17 @@ L2TP_PWTYPE_ETH = 0x0005
 # Logger
 logger = None
 
+# Check for required modules
+required_modules = ['nf_conntrack_netlink', 'nf_conntrack', 'nfnetlink', 'l2tp_netlink', 'l2tp_core']
+
+def check_for_modules():
+  installed_modules = [line.strip().split(" ")[0] for line in open('/proc/modules')]
+  for required_module in required_modules:
+    if required_module not in installed_modules:
+      return False
+
+  return True
+
 class NetlinkError(Exception):
   pass
 
@@ -1112,6 +1123,11 @@ if __name__ == '__main__':
     # We must run as root
     if os.getuid() != 0:
       print "ERROR: Must be root."
+      sys.exit(1)
+
+    if not check_for_modules():
+      print "ERROR: You must install the following kernel modules:"
+      print ",".join(required_modules)
       sys.exit(1)
 
     # Parse configuration (first argument must be the location of the configuration
