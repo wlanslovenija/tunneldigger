@@ -248,7 +248,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
 }
 
 l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id)
+  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -274,7 +274,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->hook = hook ? strdup(hook) : NULL;
 
   // Reset limits
-  ctx->limit_bandwidth_down = 0;
+  ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
 
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
@@ -1037,7 +1037,7 @@ int main(int argc, char **argv)
     int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, hook, tunnel_id);
+        tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
         if (++tries >= 120) {
@@ -1049,8 +1049,6 @@ int main(int argc, char **argv)
         sleep(5);
         continue;
       }
-
-      brokers[i].ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
 
       // Context successfully initialized
       break;
