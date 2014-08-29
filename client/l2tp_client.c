@@ -248,7 +248,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
 }
 
 l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
+  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -272,7 +272,6 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
-  ctx->standby_only = standby;
 
   // Reset limits
   ctx->limit_bandwidth_down = 0;
@@ -316,6 +315,7 @@ int context_reinitialize(l2tp_context *ctx)
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
 
+  ctx->standby_only = 1;
   ctx->standby_available = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
@@ -1035,7 +1035,7 @@ int main(int argc, char **argv)
     int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, hook, tunnel_id, 1);
+        tunnel_iface, hook, tunnel_id);
 
       if (!brokers[i].ctx) {
         if (++tries >= 120) {
