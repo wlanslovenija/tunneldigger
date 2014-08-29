@@ -1114,6 +1114,11 @@ int main(int argc, char **argv)
     for (;;) {
       context_process(main_context);
 
+      if (main_context->state == STATE_REINIT) {
+        syslog(LOG_ERR, "Connection to %s lost.", main_context->broker_hostname);
+        break;
+      }
+
       // If the connection is lost, we start the reconnection timer
       if (restart_timer && main_context->state != STATE_KEEPALIVE) {
         timer_establish = timer_now();
