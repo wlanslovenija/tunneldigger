@@ -1056,6 +1056,11 @@ int main(int argc, char **argv)
   }
 
   for (;;) {
+    /* make sure all brokers are in sane state */
+    for (i = 0; i < broker_cnt; i++) {
+      context_reinitialize(brokers[i].ctx);
+    }
+
     syslog(LOG_INFO, "Performing broker selection...");
 
     // Reset availability information and standby setting
