@@ -302,6 +302,11 @@ free_and_return:
 
 int context_reinitialize(l2tp_context *ctx)
 {
+  /* We have to set this state here to be sure ctx is in a sane state when this functions fails(ret -1)
+   * because other functions than the state machine call this function.
+   */
+  ctx->state = STATE_REINIT;
+
   if (ctx->fd > 0)
     close(ctx->fd);
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
