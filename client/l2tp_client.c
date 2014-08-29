@@ -324,6 +324,8 @@ int context_reinitialize(l2tp_context *ctx)
     free(ctx->reliable_unacked);
     ctx->reliable_unacked = next;
   }
+  if (ctx->broker_resq)
+    asyncns_cancel(asyncns_context, ctx->broker_resq);
   ctx->broker_resq = NULL;
 
   // Reset relevant timers
