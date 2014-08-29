@@ -247,7 +247,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_hostname,
+l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
   char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
@@ -256,15 +256,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     return NULL;
   }
 
-  ctx->state = STATE_RESOLVING;
-
-  // Setup the UDP socket that we will use for connecting with the
-  // broker and for data transport
-  ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (ctx->fd < 0) {
-    syslog(LOG_ERR, "Failed to create new UDP socket!");
-    goto free_and_return;
-  }
+  ctx->state = STATE_REINIT;
 
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
@@ -276,45 +268,14 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->broker_hostname = strdup(broker_hostname);
   ctx->broker_port = strdup(broker_port);
 
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
-    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
-    goto free_and_return;
-  }
-
-  int val = IP_PMTUDISC_PROBE;
-  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-    syslog(LOG_ERR, "Failed to setup PMTU socket options!");
-    goto free_and_return;
-  }
-
   ctx->uuid = strdup(uuid);
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
   ctx->standby_only = standby;
-  ctx->standby_available = 0;
-  ctx->reliable_seqno = 0;
-  ctx->reliable_unacked = NULL;
-  ctx->broker_resq = NULL;
 
   // Reset limits
   ctx->limit_bandwidth_down = 0;
-
-  // Reset all timers
-  time_t now = timer_now();
-  ctx->last_alive = now;
-  ctx->timer_cookie = now;
-  ctx->timer_tunnel = now;
-  ctx->timer_keepalive = now;
-  ctx->timer_reinit = now;
-
-  // PMTU discovery
-  ctx->pmtu = 0;
-  ctx->probed_pmtu = 0;
-  ctx->pmtu_reprobe_interval = 15;
-  ctx->timer_pmtu_reprobe = now;
-  ctx->timer_pmtu_collect = -1;
-  ctx->timer_pmtu_xmit = -1;
 
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
@@ -342,7 +303,8 @@ free_and_return:
 
 int context_reinitialize(l2tp_context *ctx)
 {
-  close(ctx->fd);
+  if (ctx->fd > 0)
+    close(ctx->fd);
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (ctx->fd < 0)
     return -1;
@@ -1072,7 +1034,7 @@ int main(int argc, char **argv)
     // and then abort.
     int tries = 0;
     for (;;) {
-      brokers[i].ctx = context_init(uuid, local_ip, brokers[i].address, brokers[i].port,
+      brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
         tunnel_iface, hook, tunnel_id, 1);
 
       if (!brokers[i].ctx) {
