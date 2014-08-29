@@ -1067,9 +1067,6 @@ int main(int argc, char **argv)
 
     // Reset availability information and standby setting
     for (i = 0; i < broker_cnt; i++) {
-      brokers[i].ctx->standby_only = 1;
-      brokers[i].ctx->standby_available = 0;
-
       // Start hostname resolution and connect process
       context_start_connect(brokers[i].ctx);
     }
