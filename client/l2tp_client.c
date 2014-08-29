@@ -788,6 +788,9 @@ void context_process(l2tp_context *ctx)
   // Transmit packets if needed
   switch (ctx->state) {
     case STATE_RESOLVING: {
+      if (ctx->broker_resq == NULL)
+        context_start_connect(ctx);
+
       // Check if address has already been resolved and change state
       if (ctx->broker_resq && asyncns_isdone(asyncns_context, ctx->broker_resq)) {
         struct addrinfo *result;
