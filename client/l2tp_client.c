@@ -798,18 +798,21 @@ void context_process(l2tp_context *ctx)
 
         if (status != 0) {
           syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
+          /* TODO: memory leak - asyncns_getaddrinfo_done() does not free in all error cases ctx->broker_resp.
+           * Fix asyncns - remove free() from asyncns_getaddrinfo_done()
+           */
+          ctx->broker_resq = NULL;
           context_start_connect(ctx);
           return;
         } else {
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
             syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
-            asyncns_freeaddrinfo(result);
             ctx->state = STATE_REINIT;
-            return;
+          } else {
+            ctx->state = STATE_GET_COOKIE;
           }
-
-          ctx->state = STATE_GET_COOKIE;
           asyncns_freeaddrinfo(result);
+          ctx->broker_resq = NULL;
         }
       }
       break;
