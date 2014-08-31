@@ -538,7 +538,7 @@ void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type,
 
   // Send the packet
   if (send(ctx->fd, buf, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in prepare packet (errno=%d, type=%x)!", errno, type);
   }
 }
 
@@ -580,7 +580,7 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
 {
   if (send(ctx->fd, packet, len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in raw packet (errno=%d, type=%x)!", errno, packet[4]);
   }
 }
 
@@ -591,7 +591,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in send packet (errno=%d, type=%x)!", errno, type);
   }
 }
 
