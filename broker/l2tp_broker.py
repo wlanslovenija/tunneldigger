@@ -92,6 +92,9 @@ LimitMessage = cs.Struct("limit",
   cs.PascalString("data")
 )
 
+# For logging scripts
+script_logger = open(config.get('broker', 'script_log'), 'a+')
+
 LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
 
 # Overhead of IP and UDP headers for measuring PMTU
@@ -792,7 +795,7 @@ class TunnelManager(object):
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s %s'." % (name, script, str([str(x) for x in args])))
     try:
-      gevent_subprocess.call([script] + [str(x) for x in args])
+      gevent.subprocess.call([script] + [str(x) for x in args], stdout=script_logger, stderr=script_logger)
     except:
       logger.warning("Failed to execute hook '%s'!" % script)
       logger.warning(traceback.format_exc())
