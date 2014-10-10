@@ -57,7 +57,7 @@ not affect the versions that are installed for Tunneldigger.
 
 You can install all of the above simply by running on Debian::
 
-    sudo apt-get install iproute bridge-utils libnetfilter-conntrack3 python-dev libevent-dev ebtables python-virtualenv
+    sudo apt-get install iproute bridge-utils libnetfilter-conntrack3 python-dev libevent-dev ebtables python-virtualenv libnl-dev libpopt-dev
 
 and for Fedora you can use this command::
 
