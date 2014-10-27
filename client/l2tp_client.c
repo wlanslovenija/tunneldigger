@@ -69,6 +69,10 @@
 //
 #define L2TP_TUN_OVERHEAD 54
 
+/* Offset of type field in control messages.
+ * 0 means first byte off our payload in l2tp ctrl message */
+#define OFFSET_CONTROL_TYPE 4
+
 #ifdef LIBNL_TINY
 #define nl_handle nl_sock
 #define nl_handle_alloc nl_socket_alloc
@@ -582,7 +586,7 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
 {
   if (send(ctx->fd, packet, len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() in raw packet (errno=%d, type=%x)!", errno, packet[4]);
+    syslog(LOG_WARNING, "Failed to send() in raw packet (errno=%d, type=%x)!", errno, packet[OFFSET_CONTROL_TYPE]);
   }
 }
 
