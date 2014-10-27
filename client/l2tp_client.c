@@ -313,8 +313,10 @@ int context_reinitialize(l2tp_context *ctx)
   if (ctx->fd < 0)
     return -1;
 
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0)
+  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
+    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
     return -1;
+  }
 
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
