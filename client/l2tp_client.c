@@ -69,6 +69,10 @@
 //
 #define L2TP_TUN_OVERHEAD 54
 
+/* Offset of type field in control messages.
+ * 0 means first byte off our payload in l2tp ctrl message */
+#define OFFSET_CONTROL_TYPE 4
+
 #ifdef LIBNL_TINY
 #define nl_handle nl_sock
 #define nl_handle_alloc nl_socket_alloc
@@ -247,8 +251,8 @@ void put_u32(unsigned char **buffer, uint32_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int standby)
+l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
+  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -256,15 +260,7 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
     return NULL;
   }
 
-  ctx->state = STATE_RESOLVING;
-
-  // Setup the UDP socket that we will use for connecting with the
-  // broker and for data transport
-  ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (ctx->fd < 0) {
-    syslog(LOG_ERR, "Failed to create new UDP socket!");
-    goto free_and_return;
-  }
+  ctx->state = STATE_REINIT;
 
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
@@ -276,45 +272,13 @@ l2tp_context *context_init(char *uuid, const char *local_ip, const char *broker_
   ctx->broker_hostname = strdup(broker_hostname);
   ctx->broker_port = strdup(broker_port);
 
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
-    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
-    goto free_and_return;
-  }
-
-  int val = IP_PMTUDISC_PROBE;
-  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0) {
-    syslog(LOG_ERR, "Failed to setup PMTU socket options!");
-    goto free_and_return;
-  }
-
   ctx->uuid = strdup(uuid);
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
-  ctx->standby_only = standby;
-  ctx->standby_available = 0;
-  ctx->reliable_seqno = 0;
-  ctx->reliable_unacked = NULL;
-  ctx->broker_resq = NULL;
 
   // Reset limits
-  ctx->limit_bandwidth_down = 0;
-
-  // Reset all timers
-  time_t now = timer_now();
-  ctx->last_alive = now;
-  ctx->timer_cookie = now;
-  ctx->timer_tunnel = now;
-  ctx->timer_keepalive = now;
-  ctx->timer_reinit = now;
-
-  // PMTU discovery
-  ctx->pmtu = 0;
-  ctx->probed_pmtu = 0;
-  ctx->pmtu_reprobe_interval = 15;
-  ctx->timer_pmtu_reprobe = now;
-  ctx->timer_pmtu_collect = -1;
-  ctx->timer_pmtu_xmit = -1;
+  ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
 
   // Setup the netlink socket
   ctx->nl_sock = nl_handle_alloc();
@@ -342,18 +306,27 @@ free_and_return:
 
 int context_reinitialize(l2tp_context *ctx)
 {
-  close(ctx->fd);
+  /* We have to set this state here to be sure ctx is in a sane state when this functions fails(ret -1)
+   * because other functions than the state machine call this function.
+   */
+  ctx->state = STATE_REINIT;
+
+  if (ctx->fd > 0)
+    close(ctx->fd);
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (ctx->fd < 0)
     return -1;
 
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0)
+  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
+    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
     return -1;
+  }
 
   int val = IP_PMTUDISC_PROBE;
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
 
+  ctx->standby_only = 1;
   ctx->standby_available = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
@@ -362,6 +335,8 @@ int context_reinitialize(l2tp_context *ctx)
     free(ctx->reliable_unacked);
     ctx->reliable_unacked = next;
   }
+  if (ctx->broker_resq)
+    asyncns_cancel(asyncns_context, ctx->broker_resq);
   ctx->broker_resq = NULL;
 
   // Reset relevant timers
@@ -569,7 +544,7 @@ void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type,
 
   // Send the packet
   if (send(ctx->fd, buf, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in prepare packet (errno=%d, type=%x)!", errno, type);
   }
 }
 
@@ -611,7 +586,7 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
 {
   if (send(ctx->fd, packet, len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in raw packet (errno=%d, type=%x)!", errno, packet[OFFSET_CONTROL_TYPE]);
   }
 }
 
@@ -622,7 +597,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() control packet (errno=%d)!", errno);
+    syslog(LOG_WARNING, "Failed to send() in send packet (errno=%d, type=%x)!", errno, type);
   }
 }
 
@@ -819,6 +794,9 @@ void context_process(l2tp_context *ctx)
   // Transmit packets if needed
   switch (ctx->state) {
     case STATE_RESOLVING: {
+      if (ctx->broker_resq == NULL)
+        context_start_connect(ctx);
+
       // Check if address has already been resolved and change state
       if (ctx->broker_resq && asyncns_isdone(asyncns_context, ctx->broker_resq)) {
         struct addrinfo *result;
@@ -826,18 +804,21 @@ void context_process(l2tp_context *ctx)
 
         if (status != 0) {
           syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
+          /* TODO: memory leak - asyncns_getaddrinfo_done() does not free in all error cases ctx->broker_resp.
+           * Fix asyncns - remove free() from asyncns_getaddrinfo_done()
+           */
+          ctx->broker_resq = NULL;
           context_start_connect(ctx);
           return;
         } else {
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
             syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
-            asyncns_freeaddrinfo(result);
             ctx->state = STATE_REINIT;
-            return;
+          } else {
+            ctx->state = STATE_GET_COOKIE;
           }
-
-          ctx->state = STATE_GET_COOKIE;
           asyncns_freeaddrinfo(result);
+          ctx->broker_resq = NULL;
         }
       }
       break;
@@ -1072,8 +1053,8 @@ int main(int argc, char **argv)
     // and then abort.
     int tries = 0;
     for (;;) {
-      brokers[i].ctx = context_init(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, hook, tunnel_id, 1);
+      brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
+        tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
         if (++tries >= 120) {
@@ -1086,21 +1067,21 @@ int main(int argc, char **argv)
         continue;
       }
 
-      brokers[i].ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
-
       // Context successfully initialized
       break;
     }
   }
 
   for (;;) {
+    /* make sure all brokers are in sane state */
+    for (i = 0; i < broker_cnt; i++) {
+      context_reinitialize(brokers[i].ctx);
+    }
+
     syslog(LOG_INFO, "Performing broker selection...");
 
     // Reset availability information and standby setting
     for (i = 0; i < broker_cnt; i++) {
-      brokers[i].ctx->standby_only = 1;
-      brokers[i].ctx->standby_available = 0;
-
       // Start hostname resolution and connect process
       context_start_connect(brokers[i].ctx);
     }
@@ -1141,6 +1122,11 @@ int main(int argc, char **argv)
     time_t timer_establish = timer_now();
     for (;;) {
       context_process(main_context);
+
+      if (main_context->state == STATE_REINIT) {
+        syslog(LOG_ERR, "Connection to %s lost.", main_context->broker_hostname);
+        break;
+      }
 
       // If the connection is lost, we start the reconnection timer
       if (restart_timer && main_context->state != STATE_KEEPALIVE) {
