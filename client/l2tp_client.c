@@ -541,11 +541,6 @@ void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type,
   // when used over port 53
   if (L2TP_CONTROL_SIZE + len < 12)
     len += 12 - L2TP_CONTROL_SIZE - len;
-
-  // Send the packet
-  if (send(ctx->fd, buf, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() in prepare packet (errno=%d, type=%x)!", errno, type);
-  }
 }
 
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
