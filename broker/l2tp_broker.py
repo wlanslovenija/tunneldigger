@@ -443,7 +443,7 @@ class Tunnel(gevent.Greenlet):
 
       # Transmit PMTU probes of different sizes multiple times
       for _ in xrange(4):
-        for size in [500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500]:
+        for size in [750, 1000, 1100, 1280, 1334, 1400, 1450, 1476, 1492, 1500]:
           try:
             msg = ControlMessage.build(cs.Container(
               magic1 = 0x80,

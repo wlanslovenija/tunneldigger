@@ -618,7 +618,7 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
 void context_pmtu_start_discovery(l2tp_context *ctx)
 {
   size_t sizes[] = {
-    500, 750, 1000, 1100, 1250, 1300, 1400, 1492, 1500
+    750, 1000, 1100, 1280, 1334, 1400, 1450, 1476, 1492, 1500
   };
 
   int i;
