@@ -890,6 +890,11 @@ class TunnelManager(object):
     :param session: Session instance
     :param mtu: Wanted MTU
     """
+
+    # Ignore tunnel setup if the manager is closing.
+    if self.closed:
+      return None, False
+
     try:
       ifreq = (session.name + '\0' * 16)[:16]
       data = struct.pack("16si", ifreq, mtu)
@@ -944,6 +949,11 @@ class TunnelManager(object):
       tunnel has just been created; (None, False) if something went
       wrong
     """
+
+    # Ignore tunnel setup if the manager is closing.
+    if self.closed:
+      return None, False
+
     if endpoint in self.tunnels:
       tunnel = self.tunnels[endpoint]
 
@@ -1042,6 +1052,11 @@ class MessageHandler(object):
     :return: Message if the message needs further processing, None
       otherwise
     """
+
+    # Ignore the message if the manager is closing.
+    if self.manager.closed:
+      return
+
     try:
       msg = ControlMessage.parse(data)
     except cs.ConstructError:
