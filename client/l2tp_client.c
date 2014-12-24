@@ -536,11 +536,6 @@ void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type,
   put_u8(&buf, len);
   if (payload)
     memcpy(buf, payload, len);
-
-  // Pad the packet to 12 bytes to avoid it being filtered by some firewalls
-  // when used over port 53
-  if (L2TP_CONTROL_SIZE + len < 12)
-    len += 12 - L2TP_CONTROL_SIZE - len;
 }
 
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
@@ -589,6 +584,11 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 {
   char buffer[2048];
   context_prepare_packet(ctx, (unsigned char*) &buffer, type, payload, len);
+
+  // Pad the packet to 12 bytes to avoid it being filtered by some firewalls
+  // when used over port 53
+  if (L2TP_CONTROL_SIZE + len < 12)
+    len += 12 - L2TP_CONTROL_SIZE - len;
 
   // Send the packet
   if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
