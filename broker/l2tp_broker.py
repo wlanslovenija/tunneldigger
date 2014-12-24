@@ -513,7 +513,14 @@ class Tunnel(gevent.Greenlet):
       # All packets count as liveness indicators
       self.keep_alive()
 
+      # Adjust for padding if message is shorter than 12 bytes as otherwise the
+      # parsing will fail. Such messages may be received due to a bug in some
+      # clients.
+      if len(data) < 12:
+        data += '\x00' * (12 - len(data))
+
       msg = self.handler.handle(self.socket, data, address)
+
       if msg is None:
         # Message has been handled or is invalid
         continue
