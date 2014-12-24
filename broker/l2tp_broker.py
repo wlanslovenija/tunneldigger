@@ -440,6 +440,8 @@ class Tunnel(gevent.Greenlet):
 
       # Reset measured PMTU
       self.probed_pmtu = 0
+      self.num_pmtu_probes = 0
+      self.num_pmtu_replies = 0
 
       # Transmit PMTU probes of different sizes multiple times
       for _ in xrange(4):
@@ -456,16 +458,19 @@ class Tunnel(gevent.Greenlet):
             msg += '\x00' * (size - IPV4_HDR_OVERHEAD - L2TP_CONTROL_SIZE - 6)
 
             self.socket.send(msg)
+            self.num_pmtu_probes += 1
           except gsocket.error:
             pass
 
         gevent.sleep(1)
 
       # Collect all acknowledgements
-      gevent.sleep(1)
+      if self.num_pmtu_probes != self.num_pmtu_replies:
+        gevent.sleep(3)
+
       detected_pmtu = self.probed_pmtu - L2TP_TUN_OVERHEAD
-      if detected_pmtu == 0:
-        logger.warning("Got no replies to PMTU probes for tunnel %d." % self.id)
+      if not self.probed_pmtu or not self.num_pmtu_replies:
+        logger.warning("Got no replies to any PMTU probes for tunnel %d." % self.id)
         continue
       elif detected_pmtu > 0 and detected_pmtu != self.pmtu:
         # Alter MTU for all sessions
@@ -538,6 +543,7 @@ class Tunnel(gevent.Greenlet):
       elif msg.type == CONTROL_TYPE_PMTUD_ACK:
         # Decode ACK packet and extract size
         psize = cs.UBInt16("size").parse(msg.data) + IPV4_HDR_OVERHEAD
+        self.num_pmtu_replies += 1
 
         if psize > self.probed_pmtu:
           self.probed_pmtu = psize
