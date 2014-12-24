@@ -24,8 +24,6 @@ import datetime
 import fcntl
 import gevent
 import gevent.socket as gsocket
-# Import gevent.subprocess needs to be explicit
-import gevent.subprocess
 import genetlink
 import logging
 import netfilter.rule
@@ -38,6 +36,11 @@ import struct
 import sys
 import traceback
 import traffic_control
+
+try:
+  from gevent import subprocess as gevent_subprocess
+except ImportError:
+  import gevent_subprocess
 
 # Control message for our protocol; first few bits are special as we have to
 # maintain compatibility with LTPv3 in the kernel (first bit must be 1); also
@@ -770,7 +773,7 @@ class TunnelManager(object):
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
     try:
-      gevent.subprocess.call([script] + [str(x) for x in args])
+      gevent_subprocess.call([script] + [str(x) for x in args])
     except:
       logger.warning("Failed to execute hook '%s'!" % script)
       logger.warning(traceback.format_exc())
