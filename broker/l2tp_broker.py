@@ -26,6 +26,7 @@ import gevent
 import gevent.socket as gsocket
 import genetlink
 import logging
+import logging.handlers
 import netfilter.rule
 import netfilter.table
 import netlink
@@ -150,7 +151,7 @@ L2TP_ENCAPTYPE_UDP = 0
 L2TP_PWTYPE_ETH = 0x0005
 
 # Logger
-logger = None
+logger = logging.getLogger("tunneldigger.broker")
 
 # Check for required modules
 required_modules = ['nf_conntrack_netlink', 'nf_conntrack', 'nfnetlink', 'l2tp_netlink', 'l2tp_core']
@@ -1152,6 +1153,19 @@ class BaseControl(gevent.Greenlet):
 
       self.handler.handle(socket, data, address)
 
+def setup_logging(config):
+    filename = config.get("log", "filename")
+    level = getattr(logging, config.get("log", "verbosity"))
+    lineformat = '%(asctime)s %(levelname)-8s %(message)s'
+    dateformat = '%a, %d %b %Y %H:%M:%S'
+
+    handler = logging.handlers.WatchedFileHandler(filename)
+    handler.setFormatter(logging.Formatter(lineformat, dateformat))
+    handler.addFilter(logging.Filter('tunneldigger'))
+
+    logger.setLevel(level)
+    logger.addHandler(handler)
+
 if __name__ == '__main__':
   try:
     # We must run as root
@@ -1176,16 +1190,7 @@ if __name__ == '__main__':
       print "ERROR: First argument must be a configuration file path!"
       sys.exit(1)
 
-    # Setup the logger
-    logging.basicConfig(
-      level = getattr(logging, config.get("log", "verbosity")),
-      format = '%(asctime)s %(levelname)-8s %(message)s',
-      datefmt = '%a, %d %b %Y %H:%M:%S',
-      filename = config.get("log", "filename"),
-      filemode = 'a'
-    )
-    logging.root.handlers[0].addFilter(logging.Filter('tunneldigger'))
-    logger = logging.getLogger("tunneldigger.broker")
+    setup_logging(config)
 
     # Setup the base control server
     manager = TunnelManager(config)
