@@ -483,7 +483,7 @@ class Tunnel(gevent.Greenlet):
 
           # Invoke MTU change hook for each session
           self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
-            detected_pmtu)
+            detected_pmtu, self.uuid)
 
         logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
         self.pmtu = detected_pmtu
@@ -578,13 +578,13 @@ class Tunnel(gevent.Greenlet):
     for session in self.sessions.values():
       # Invoke any pre-down hooks
       self.manager.hook('session.pre-down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
-        self.endpoint[1], self.port)
+        self.endpoint[1], self.port, self.uuid)
 
       self.manager.netlink.session_delete(self.id, session.id)
 
       # Invoke any down hooks
       self.manager.hook('session.down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
-        self.endpoint[1], self.port)
+        self.endpoint[1], self.port, self.uuid)
 
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
@@ -632,7 +632,7 @@ class Tunnel(gevent.Greenlet):
     """
     for session in self.sessions.values():
       self.manager.hook('session.up', self.id, session.id, session.name, self.pmtu,
-        self.endpoint[0], self.endpoint[1], self.port)
+        self.endpoint[0], self.endpoint[1], self.port, self.uuid)
 
   def create_session(self):
     """
