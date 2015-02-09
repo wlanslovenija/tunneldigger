@@ -390,6 +390,7 @@ class Tunnel(gevent.Greenlet):
     self.limits = Limits(self)
     self.sessions = {}
     self.next_session_id = 1
+    self.id = -1
     self.keep_alive()
 
   def setup(self):
