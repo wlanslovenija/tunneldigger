@@ -73,6 +73,18 @@ CONTROL_TYPE_PMTUD_ACK = 0x07
 CONTROL_TYPE_REL_ACK   = 0x08
 CONTROL_TYPE_PMTU_NTFY = 0x09
 
+# Error Reason Byte
+# e.g. a client shutdown. it sends 0x11 to the server which answer with 0x00 (other request)
+# left nibble is direction
+ERROR_REASON_FROM_SERVER = 0x00
+ERROR_REASON_FROM_CLIENT = 0x10
+# right nibble is error code
+ERROR_REASON_OTHER_REQUEST  = 0x01 # other site requested
+ERROR_REASON_SHUTDOWN       = 0x02 # shutdown
+ERROR_REASON_TIMEOUT        = 0x03
+ERROR_REASON_FAILURE        = 0x04 # e.q. on malloc() failure
+ERROR_REASON_UNDEFINED      = 0x05
+
 # Reliable messages (0x80 - 0xFF)
 MASK_CONTROL_TYPE_RELIABLE = 0x80
 CONTROL_TYPE_LIMIT     = 0x80
@@ -90,6 +102,12 @@ LimitMessage = cs.Struct("limit",
   cs.UBInt8("type"),
   # Limit configuration
   cs.PascalString("data")
+)
+
+# Error message
+ErrorMessage = cs.Struct("error",
+  # reason type
+  cs.UBInt8("reason"),
 )
 
 LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
@@ -428,7 +446,7 @@ class Tunnel(gevent.Greenlet):
         else:
           logger.warning("Session with tunnel %d timed out." % self.id)
 
-        gevent.spawn(self.manager.close_tunnel, self)
+        gevent.spawn(self.manager.close_tunnel, self, ERROR_REASON_FROM_SERVER & ERROR_REASON_TIMEOUT)
         return
 
       gevent.sleep(5.0)
@@ -541,7 +559,12 @@ class Tunnel(gevent.Greenlet):
         # Message has been handled or is invalid
         continue
       elif msg.type == CONTROL_TYPE_ERROR:
-        logger.warning("Error message received from client, tearing down tunnel %d." % self.id)
+        if len(msg.data) > 0:
+          err = ErrorMessage.parse(msg.data)
+          logger.warning("Error message received from client, tearing down tunnel %d. Reason %d" % (self.id, err.reason))
+        else:
+          logger.warning("Error message received from client, tearing down tunnel %d." % self.id)
+
         gevent.spawn(self.manager.close_tunnel, self)
         return
       elif msg.type == CONTROL_TYPE_PMTUD:
@@ -584,7 +607,7 @@ class Tunnel(gevent.Greenlet):
             logger.warning("Unknown type of limit (%d) requested on tunnel %d." % (limit.type, self.id))
             return
 
-  def close(self, kill = True):
+  def close(self, kill = True, reason = ERROR_REASON_UNDEFINED):
     """
     Close the tunnel and remove all mappings.
     """
@@ -604,7 +627,7 @@ class Tunnel(gevent.Greenlet):
 
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
-    self.handler.send_message(self.socket, CONTROL_TYPE_ERROR)
+    self.handler.send_message(self.socket, CONTROL_TYPE_ERROR, bytearray([reason]))
 
     self.socket.close()
     self.remove_netfilter()
@@ -889,7 +912,7 @@ class TunnelManager(object):
         # Kill must not be called as the manager's close method can be called
         # from a signal handler and this may cause the greenlets to switch
         # to hub which may cause the application to exit prematurely
-        tunnel.close(kill = False)
+        tunnel.close(kill = False, reason = ERROR_REASON_SHUTDOWN)
       except:
         logger.warning("Failed to close tunnel!")
         logger.debug(traceback.format_exc())
@@ -950,7 +973,7 @@ class TunnelManager(object):
 
     self.netlink.session_modify(tunnel.id, session.id, mtu)
 
-  def close_tunnel(self, tunnel):
+  def close_tunnel(self, tunnel, reason = ERROR_REASON_UNDEFINED):
     """
     Closes an existing tunnel.
 
@@ -966,7 +989,7 @@ class TunnelManager(object):
       logger.info("Closing tunnel %d." % (tunnel.id))
 
     try:
-      tunnel.close()
+      tunnel.close(reason)
     except:
       if self.config.getboolean('log', 'log_ip_addresses'):
         logger.error("Exception while closing tunnel %d to %s:%d!" % (tunnel.id,
