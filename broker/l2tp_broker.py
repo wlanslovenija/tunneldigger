@@ -772,7 +772,7 @@ class TunnelManager(object):
       return
 
     # Execute the registered hook
-    logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
+    logger.debug("Executing hook '%s' via script '%s %s'." % (name, script, str([str(x) for x in args])))
     try:
       gevent_subprocess.call([script] + [str(x) for x in args])
     except:
