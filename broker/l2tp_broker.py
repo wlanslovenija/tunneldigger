@@ -59,7 +59,7 @@ ControlMessage = cs.Struct("control",
   # Message data (with length prefix)
   cs.PascalString("data"),
   # Pad the message so it is at least 12 bytes long
-  cs.Padding(lambda ctx: max(0, 6 - len(ctx["data"]))),
+  cs.Optional(cs.Padding(lambda ctx: max(0, 6 - len(ctx["data"])))),
 )
 
 # Unreliable messages (0x00 - 0x7F)
@@ -390,6 +390,7 @@ class Tunnel(gevent.Greenlet):
     self.limits = Limits(self)
     self.sessions = {}
     self.next_session_id = 1
+    self.id = -1
     self.keep_alive()
 
   def setup(self):
@@ -483,7 +484,7 @@ class Tunnel(gevent.Greenlet):
 
           # Invoke MTU change hook for each session
           self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
-            detected_pmtu)
+            detected_pmtu, self.uuid)
 
         logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
         self.pmtu = detected_pmtu
@@ -522,14 +523,7 @@ class Tunnel(gevent.Greenlet):
       # All packets count as liveness indicators
       self.keep_alive()
 
-      # Adjust for padding if message is shorter than 12 bytes as otherwise the
-      # parsing will fail. Such messages may be received due to a bug in some
-      # clients.
-      if len(data) < 12:
-        data += '\x00' * (12 - len(data))
-
       msg = self.handler.handle(self.socket, data, address)
-
       if msg is None:
         # Message has been handled or is invalid
         continue
@@ -578,13 +572,13 @@ class Tunnel(gevent.Greenlet):
     for session in self.sessions.values():
       # Invoke any pre-down hooks
       self.manager.hook('session.pre-down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
-        self.endpoint[1], self.port)
+        self.endpoint[1], self.port, self.uuid)
 
       self.manager.netlink.session_delete(self.id, session.id)
 
       # Invoke any down hooks
       self.manager.hook('session.down', self.id, session.id, session.name, self.pmtu, self.endpoint[0],
-        self.endpoint[1], self.port)
+        self.endpoint[1], self.port, self.uuid)
 
     # Transmit error message so the other end can tear down the tunnel
     # immediately instead of waiting for keepalive timeout
@@ -632,7 +626,7 @@ class Tunnel(gevent.Greenlet):
     """
     for session in self.sessions.values():
       self.manager.hook('session.up', self.id, session.id, session.name, self.pmtu,
-        self.endpoint[0], self.endpoint[1], self.port)
+        self.endpoint[0], self.endpoint[1], self.port, self.uuid)
 
   def create_session(self):
     """
@@ -772,7 +766,7 @@ class TunnelManager(object):
       return
 
     # Execute the registered hook
-    logger.debug("Executing hook '%s' via script '%s'..." % (name, script))
+    logger.debug("Executing hook '%s' via script '%s %s'." % (name, script, str([str(x) for x in args])))
     try:
       gevent_subprocess.call([script] + [str(x) for x in args])
     except:

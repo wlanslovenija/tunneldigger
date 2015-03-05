@@ -803,7 +803,7 @@ void context_process(l2tp_context *ctx)
            * Fix asyncns - remove free() from asyncns_getaddrinfo_done()
            */
           ctx->broker_resq = NULL;
-          context_start_connect(ctx);
+          ctx->state = STATE_REINIT;
           return;
         } else {
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
