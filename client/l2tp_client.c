@@ -618,11 +618,11 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
 void context_pmtu_start_discovery(l2tp_context *ctx)
 {
   size_t sizes[] = {
-    750, 1000, 1100, 1280, 1334, 1400, 1450, 1476, 1492, 1500
+    1334, 1400, 1450, 1476, 1492, 1500
   };
 
   int i;
-  for (i = 0; i < 9; i++) {
+  for (i = 0; i < 6; i++) {
     context_send_pmtu_probe(ctx, sizes[i]);
   }
 }
@@ -723,6 +723,9 @@ int context_session_set_mtu(l2tp_context *ctx, uint16_t mtu)
 {
   // Update the device MTU
   struct ifreq ifr;
+
+  if (mtu < 1280)
+    mtu = 1280;
 
   memset(&ifr, 0, sizeof(ifr));
   strncpy(ifr.ifr_name, ctx->tunnel_iface, sizeof(ifr.ifr_name));
