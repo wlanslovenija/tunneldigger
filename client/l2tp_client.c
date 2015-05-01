@@ -174,6 +174,7 @@ typedef struct {
 } l2tp_context;
 
 // Forward declarations
+void context_delete_tunnel(l2tp_context *ctx);
 void context_close_tunnel(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
@@ -355,6 +356,9 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->timer_pmtu_xmit = -1;
 
   ctx->state = STATE_RESOLVING;
+
+  // Ensure any tunnels are removed.
+  context_delete_tunnel(ctx);
 
   return 0;
 }
@@ -654,6 +658,17 @@ void context_send_setup_request(l2tp_context *ctx)
 
 void context_delete_tunnel(l2tp_context *ctx)
 {
+  // Take the interface down.
+  struct ifreq ifr;
+  memset(&ifr, 0, sizeof(ifr));
+  strncpy(ifr.ifr_name, ctx->tunnel_iface, sizeof(ifr.ifr_name));
+  if (ioctl(ctx->fd, SIOCGIFFLAGS, &ifr) == 0) {
+    ifr.ifr_flags &= ~IFF_UP;
+    if (ioctl(ctx->fd, SIOCSIFFLAGS, &ifr) < 0) {
+      syslog(LOG_WARNING, "Failed to take down interface %s (errno=%d).", ifr.ifr_name, errno);
+    }
+  }
+
   // Delete the session
   struct nl_msg *msg = nlmsg_alloc();
   genlmsg_put(msg, NL_AUTO_PID, NL_AUTO_SEQ, ctx->nl_family, 0, NLM_F_REQUEST,
