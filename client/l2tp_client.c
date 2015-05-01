@@ -1025,8 +1025,15 @@ int main(int argc, char **argv)
           return 1;
         }
 
-        brokers[broker_cnt].address = strdup(strtok(optarg, ":"));
-        brokers[broker_cnt].port = strdup(strtok(NULL, ":"));
+        char *address = strtok(optarg, ":");
+        char *port = strtok(NULL, ":");
+        if (!address || !port) {
+          fprintf(stderr, "ERROR: Each broker must be passed in the format 'host:port'!\n");
+          return 1;
+        }
+
+        brokers[broker_cnt].address = strdup(address);
+        brokers[broker_cnt].port = strdup(port);
         brokers[broker_cnt].ctx = NULL;
         broker_cnt++;
         break;
