@@ -49,6 +49,9 @@
 
 #include "asyncns.h"
 
+// Maximum number of unacknowledged reliable messages.
+#define MAX_PENDING_MESSAGES 30
+
 // If this is not defined, build fails on OpenWrt
 #define IP_PMTUDISC_PROBE 3
 
@@ -561,17 +564,26 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
   msg->len = L2TP_CONTROL_SIZE + len + 2;
   msg->next = NULL;
 
+  size_t pending_messages = 0;
   if (ctx->reliable_unacked == NULL) {
     ctx->reliable_unacked = msg;
   } else {
     reliable_message *m = ctx->reliable_unacked;
-    while (m->next != NULL)
+    while (m->next != NULL) {
       m = m->next;
+      pending_messages++;
+    }
 
     m->next = msg;
   }
 
-  // TODO If there are too many unacked messages, start dropping new ones
+  // If there are too many unacked messages, start dropping old ones.
+  if (pending_messages > MAX_PENDING_MESSAGES) {
+    reliable_message *m = ctx->reliable_unacked;
+    ctx->reliable_unacked = m->next;
+    free(m->msg);
+    free(m);
+  }
 
   ctx->reliable_seqno++;
   context_send_raw_packet(ctx, msg->msg, msg->len);
