@@ -189,6 +189,9 @@ void context_free(l2tp_context *ctx);
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
 
+/* Force the tunnel to go over a certain interface */
+char *force_iface = 0;
+
 time_t timer_now()
 {
   struct timespec ts;
@@ -321,6 +324,17 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (ctx->fd < 0)
     return -1;
+
+  /* Bind the socket to an interface if given */
+  if (force_iface) {
+    int rc;
+
+    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, force_iface, strlen(force_iface));
+    if (rc != 0) {
+      syslog(LOG_ERR, "Failed to bind to device!");
+      return -1;
+    }
+  }
 
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
@@ -1005,6 +1019,7 @@ void show_help(const char *app)
     "       -l ip         local IP address to bind to (default 0.0.0.0)\n"
     "       -b host:port  broker hostname and port (can be specified multiple times)\n"
     "       -i iface      tunnel interface name\n"
+    "       -I iface      force client to bind tunnel socket to a specific interface\n"
     "       -s hook       hook script\n"
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
@@ -1044,7 +1059,7 @@ int main(int argc, char **argv)
   int broker_cnt = 0;
 
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -1076,6 +1091,7 @@ int main(int argc, char **argv)
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = atoi(optarg); break;
       case 'L': limit_bandwidth_down = atoi(optarg); break;
+      case 'I': force_iface = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
