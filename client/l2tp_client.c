@@ -174,6 +174,7 @@ typedef struct {
   time_t timer_tunnel;
   time_t timer_keepalive;
   time_t timer_reinit;
+  time_t timer_resolving;
 } l2tp_context;
 
 // Forward declarations
@@ -349,6 +350,7 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->timer_tunnel = now;
   ctx->timer_keepalive = now;
   ctx->timer_reinit = now;
+  ctx->timer_resolving = -1;
 
   // PMTU discovery
   ctx->pmtu = 0;
@@ -376,6 +378,7 @@ void context_start_connect(l2tp_context *ctx)
   ctx->broker_reshints.ai_socktype = SOCK_DGRAM;
   ctx->broker_resq = asyncns_getaddrinfo(asyncns_context, ctx->broker_hostname, ctx->broker_port,
     &ctx->broker_reshints);
+  ctx->timer_resolving = timer_now();
 
   if (!ctx->broker_resq) {
     syslog(LOG_ERR, "Failed to start name resolution!");
@@ -845,6 +848,14 @@ void context_process(l2tp_context *ctx)
           asyncns_freeaddrinfo(result);
           ctx->broker_resq = NULL;
         }
+      } else if (is_timeout(&ctx->timer_resolving, 5)) {
+        syslog(LOG_ERR, "Hostname resolution timed out.");
+
+        if (ctx->broker_resq)
+          asyncns_cancel(asyncns_context, ctx->broker_resq);
+        ctx->broker_resq = NULL;
+        ctx->state = STATE_REINIT;
+        return;
       }
       break;
     }
@@ -1089,11 +1100,6 @@ int main(int argc, char **argv)
         tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
-        if (++tries >= 120) {
-          syslog(LOG_ERR, "Unable to initialize tunneldigger context! Aborting.");
-          return 1;
-        }
-
         syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
         sleep(5);
         continue;
