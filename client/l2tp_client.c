@@ -595,7 +595,20 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
 {
   if (send(ctx->fd, packet, len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() in raw packet (errno=%d, type=%x)!", errno, packet[OFFSET_CONTROL_TYPE]);
+    switch (errno) {
+      case EINVAL: {
+        // This may happen when the underlying interface is removed. In this case we
+        // need to bind the socket again and re-initialize the context.
+        syslog(LOG_WARNING, "Failed to send() control packet, interface disappeared?");
+        syslog(LOG_WARNING, "Forcing tunnel reinitialization.");
+        ctx->state = STATE_REINIT;
+        break;
+      }
+      default: {
+        syslog(LOG_WARNING, "Failed to send() control packet (errno=%d, type=%x)!", errno, packet[OFFSET_CONTROL_TYPE]);
+        break;
+      }
+    }
   }
 }
 
@@ -610,9 +623,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
     len += 12 - L2TP_CONTROL_SIZE - len;
 
   // Send the packet
-  if (send(ctx->fd, &buffer, L2TP_CONTROL_SIZE + len, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() in send packet (errno=%d, type=%x)!", errno, type);
-  }
+  context_send_raw_packet(ctx, (char*) &buffer, L2TP_CONTROL_SIZE + len);
 }
 
 void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
