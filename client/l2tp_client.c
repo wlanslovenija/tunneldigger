@@ -285,7 +285,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
 
-  ctx->force_iface = force_iface;
+  ctx->force_iface = force_iface ? strdup(force_iface) : NULL;
 
   // Reset limits
   ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
@@ -986,6 +986,7 @@ void context_free(l2tp_context *ctx)
   free(ctx->hook);
   free(ctx->broker_hostname);
   free(ctx->broker_port);
+  free(ctx->force_iface);
   free(ctx);
 }
 
@@ -1044,7 +1045,7 @@ int main(int argc, char **argv)
 
   // Parse program options
   int log_option = 0;
-  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *force_iface_opt = 0;
+  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *force_iface_opt = NULL;
   char *hook = NULL;
   int tunnel_id = 1;
   int limit_bandwidth_down = 0;
