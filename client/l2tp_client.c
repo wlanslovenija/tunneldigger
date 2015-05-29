@@ -150,6 +150,9 @@ typedef struct {
   // List of unacked reliable messages
   reliable_message *reliable_unacked;
 
+  /* Force the tunnel to go over a certain interface */
+  char *force_iface;
+
   // Limits
   uint32_t limit_bandwidth_down;
 
@@ -257,7 +260,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
 }
 
 l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
+  char *broker_port, char *tunnel_iface, char *force_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -281,6 +284,8 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
+
+  ctx->force_iface = force_iface ? strdup(force_iface) : NULL;
 
   // Reset limits
   ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
@@ -321,6 +326,17 @@ int context_reinitialize(l2tp_context *ctx)
   ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
   if (ctx->fd < 0)
     return -1;
+
+  /* Bind the socket to an interface if given */
+  if (ctx->force_iface) {
+    int rc;
+
+    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->force_iface, strlen(ctx->force_iface));
+    if (rc != 0) {
+      syslog(LOG_ERR, "Failed to bind to device!");
+      return -1;
+    }
+  }
 
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
     syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
@@ -970,6 +986,7 @@ void context_free(l2tp_context *ctx)
   free(ctx->hook);
   free(ctx->broker_hostname);
   free(ctx->broker_port);
+  free(ctx->force_iface);
   free(ctx);
 }
 
@@ -1005,6 +1022,7 @@ void show_help(const char *app)
     "       -l ip         local IP address to bind to (default 0.0.0.0)\n"
     "       -b host:port  broker hostname and port (can be specified multiple times)\n"
     "       -i iface      tunnel interface name\n"
+    "       -I iface      force client to bind tunnel socket to a specific interface\n"
     "       -s hook       hook script\n"
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
@@ -1027,7 +1045,7 @@ int main(int argc, char **argv)
 
   // Parse program options
   int log_option = 0;
-  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL;
+  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *force_iface_opt = NULL;
   char *hook = NULL;
   int tunnel_id = 1;
   int limit_bandwidth_down = 0;
@@ -1044,7 +1062,7 @@ int main(int argc, char **argv)
   int broker_cnt = 0;
 
   char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:")) != EOF) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:")) != EOF) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -1076,6 +1094,7 @@ int main(int argc, char **argv)
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = atoi(optarg); break;
       case 'L': limit_bandwidth_down = atoi(optarg); break;
+      case 'I': force_iface_opt = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -1108,7 +1127,7 @@ int main(int argc, char **argv)
     int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
+        tunnel_iface, force_iface_opt, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
         syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
