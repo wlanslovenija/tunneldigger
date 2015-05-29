@@ -150,6 +150,9 @@ typedef struct {
   // List of unacked reliable messages
   reliable_message *reliable_unacked;
 
+  /* Force the tunnel to go over a certain interface */
+  char *force_iface;
+
   // Limits
   uint32_t limit_bandwidth_down;
 
@@ -188,9 +191,6 @@ void context_free(l2tp_context *ctx);
 
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
-
-/* Force the tunnel to go over a certain interface */
-char *force_iface = 0;
 
 time_t timer_now()
 {
@@ -260,7 +260,7 @@ void put_u32(unsigned char **buffer, uint32_t value)
 }
 
 l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
+  char *broker_port, char *tunnel_iface, char *force_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -284,6 +284,8 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
+
+  ctx->force_iface = force_iface;
 
   // Reset limits
   ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
@@ -326,10 +328,10 @@ int context_reinitialize(l2tp_context *ctx)
     return -1;
 
   /* Bind the socket to an interface if given */
-  if (force_iface) {
+  if (ctx->force_iface) {
     int rc;
 
-    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, force_iface, strlen(force_iface));
+    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->force_iface, strlen(ctx->force_iface));
     if (rc != 0) {
       syslog(LOG_ERR, "Failed to bind to device!");
       return -1;
@@ -1042,7 +1044,7 @@ int main(int argc, char **argv)
 
   // Parse program options
   int log_option = 0;
-  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL;
+  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *force_iface_opt = 0;
   char *hook = NULL;
   int tunnel_id = 1;
   int limit_bandwidth_down = 0;
@@ -1091,7 +1093,7 @@ int main(int argc, char **argv)
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = atoi(optarg); break;
       case 'L': limit_bandwidth_down = atoi(optarg); break;
-      case 'I': force_iface = strdup(optarg); break;
+      case 'I': force_iface_opt = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -1124,7 +1126,7 @@ int main(int argc, char **argv)
     int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
+        tunnel_iface, force_iface_opt, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
         syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
