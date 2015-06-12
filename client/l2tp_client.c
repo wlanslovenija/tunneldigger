@@ -644,7 +644,7 @@ void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t
 
 void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
 {
-  char buffer[2048];
+  char buffer[2048] = {0,};
   if (size > 1500 || size < L2TP_CONTROL_SIZE)
     return;
 
@@ -657,7 +657,18 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
 
   // Send the packet
   if (send(ctx->fd, &buffer, size - IPV4_HDR_OVERHEAD, 0) < 0) {
-    syslog(LOG_WARNING, "Failed to send() PMTU probe packet (errno=%d)!", errno);
+    switch (errno) {
+      // Sometimes EAFNOSUPPORT is emitted for messages larger than the local MTU in case of PPPoE.
+      case EAFNOSUPPORT:
+      case EMSGSIZE: {
+        // Message is larger than the local MTU. This is expected.
+        break;
+      }
+      default: {
+        syslog(LOG_WARNING, "Failed to send() PMTU probe packet of size %lu (errno=%d)!", size, errno);
+        break;
+      }
+    }
   }
 }
 
