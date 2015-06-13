@@ -91,6 +91,7 @@ enum l2tp_ctrl_type {
   CONTROL_TYPE_PMTUD     = 0x06,
   CONTROL_TYPE_PMTUD_ACK = 0x07,
   CONTROL_TYPE_REL_ACK   = 0x08,
+  CONTROL_TYPE_PMTU_NTFY = 0x09,
 
   // Reliable messages (0x80 - 0xFF)
   CONTROL_TYPE_LIMIT     = 0x80,
@@ -165,6 +166,7 @@ typedef struct {
 
   // PMTU probing
   int pmtu;
+  int peer_pmtu;
   int probed_pmtu;
   time_t pmtu_reprobe_interval;
   time_t timer_pmtu_reprobe;
@@ -183,6 +185,7 @@ typedef struct {
 // Forward declarations
 void context_delete_tunnel(l2tp_context *ctx);
 void context_close_tunnel(l2tp_context *ctx);
+int context_session_set_mtu(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
@@ -370,6 +373,7 @@ int context_reinitialize(l2tp_context *ctx)
 
   // PMTU discovery
   ctx->pmtu = 0;
+  ctx->peer_pmtu = 0;
   ctx->probed_pmtu = 0;
   ctx->pmtu_reprobe_interval = 15;
   ctx->timer_pmtu_reprobe = now;
@@ -522,6 +526,17 @@ void context_process_control_packet(l2tp_context *ctx)
         uint16_t psize = parse_u16(&buf) + IPV4_HDR_OVERHEAD;
         if (psize > ctx->probed_pmtu)
           ctx->probed_pmtu = psize;
+      }
+      break;
+    }
+    case CONTROL_TYPE_PMTU_NTFY: {
+      if (ctx->state == STATE_KEEPALIVE) {
+        // Process a peer PMTU notification message
+        uint16_t pmtu = parse_u16(&buf);
+        if (pmtu != ctx->peer_pmtu) {
+          ctx->peer_pmtu = mtu;
+          context_session_set_mtu(ctx);
+        }
       }
       break;
     }
@@ -787,8 +802,12 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
   return 0;
 }
 
-int context_session_set_mtu(l2tp_context *ctx, uint16_t mtu)
+int context_session_set_mtu(l2tp_context *ctx)
 {
+  uint16_t mtu = ctx->pmtu - L2TP_TUN_OVERHEAD;
+  if (ctx->peer_pmtu > 0 && ctx->peer_pmtu < mtu)
+    mtu = ctx->peer_pmtu;
+
   // Update the device MTU
   struct ifreq ifr;
 
@@ -929,8 +948,14 @@ void context_process(l2tp_context *ctx)
       if (is_timeout(&ctx->timer_pmtu_collect, 5)) {
         if (ctx->probed_pmtu > 0 && ctx->probed_pmtu != ctx->pmtu) {
           ctx->pmtu = ctx->probed_pmtu;
-          context_session_set_mtu(ctx, ctx->pmtu - L2TP_TUN_OVERHEAD);
+          context_session_set_mtu(ctx);
         }
+
+        // Notify the broker of the configured MTU
+        char buffer[16];
+        unsigned char *buf = (unsigned char*) &buffer;
+        put_u16(&buf, ctx->pmtu - L2TP_TUN_OVERHEAD);
+        context_send_packet(ctx, CONTROL_TYPE_PMTU_NTFY, (char*) &buffer, 2);
 
         ctx->probed_pmtu = 0;
         ctx->timer_pmtu_collect = -1;

@@ -71,6 +71,7 @@ CONTROL_TYPE_KEEPALIVE = 0x05
 CONTROL_TYPE_PMTUD     = 0x06
 CONTROL_TYPE_PMTUD_ACK = 0x07
 CONTROL_TYPE_REL_ACK   = 0x08
+CONTROL_TYPE_PMTU_NTFY = 0x09
 
 # Reliable messages (0x80 - 0xFF)
 MASK_CONTROL_TYPE_RELIABLE = 0x80
@@ -478,19 +479,31 @@ class Tunnel(gevent.Greenlet):
         logger.warning("Got no replies to any PMTU probes for tunnel %d." % self.id)
         continue
       elif detected_pmtu > 0 and detected_pmtu != self.pmtu:
-        # Alter MTU for all sessions
-        for session in self.sessions.values():
-          self.manager.session_set_mtu(self, session, detected_pmtu)
-
-          # Invoke MTU change hook for each session
-          self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.pmtu,
-            detected_pmtu, self.uuid)
-
-        logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
         self.pmtu = detected_pmtu
+        self._update_mtu()
+
+      # Notify the client of the detected PMTU
+      self.handler.send_message(self.socket, CONTROL_TYPE_PMTU_NTFY,
+        cs.UBInt16("mtu").build(self.pmtu))
 
       # Increase probe interval until it reaches 10 minutes
       probe_interval = min(600, probe_interval * 2)
+
+  def _update_mtu(self):
+    detected_pmtu = max(1280, min(self.pmtu, self.peer_pmtu or 1446))
+    if detected_pmtu == self.tunnel_mtu:
+      return
+
+    # Alter MTU for all sessions
+    for session in self.sessions.values():
+      self.manager.session_set_mtu(self, session, detected_pmtu)
+
+      # Invoke MTU change hook for each session
+      self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.tunnel_mtu,
+        detected_pmtu, self.uuid)
+
+    logger.debug("Detected PMTU of %d for tunnel %d." % (detected_pmtu, self.id))
+    self.tunnel_mtu = detected_pmtu
 
   def _run(self):
     """
@@ -545,6 +558,15 @@ class Tunnel(gevent.Greenlet):
 
         if psize > self.probed_pmtu:
           self.probed_pmtu = psize
+      elif msg.type == CONTROL_TYPE_PMTU_NTFY:
+        if not self.manager.config.getboolean("broker", "pmtu_discovery"):
+          continue
+
+        # Decode MTU notification packet
+        pmtu = cs.UBInt16("mtu").parse(msg.data)
+        if self.peer_pmtu != pmtu:
+          self.peer_pmtu = pmtu
+          self._update_mtu()
       elif msg.type & MASK_CONTROL_TYPE_RELIABLE:
         # Reliable messages that require ACK, transmit one now
         data = msg.data[2:]
@@ -604,7 +626,9 @@ class Tunnel(gevent.Greenlet):
 
     # Setup some default values for PMTU
     self.pmtu = 1446
+    self.peer_pmtu = None
     self.probed_pmtu = 0
+    self.tunnel_mtu = 1446
 
     # Make the socket an encapsulation socket by asking the kernel to do so
     try:
