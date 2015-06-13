@@ -534,7 +534,7 @@ void context_process_control_packet(l2tp_context *ctx)
         // Process a peer PMTU notification message
         uint16_t pmtu = parse_u16(&buf);
         if (pmtu != ctx->peer_pmtu) {
-          ctx->peer_pmtu = mtu;
+          ctx->peer_pmtu = pmtu;
           context_session_set_mtu(ctx);
         }
       }
