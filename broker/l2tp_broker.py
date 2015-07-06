@@ -796,10 +796,10 @@ class TunnelManager(object):
       stdout, stderr = script_process.communicate()
 
       if stdout:
-          logger.debug("script stdout:")
+          logger.debug("Hook '%s' script stdout:" % script)
           logger.debug(stdout)
       if stderr:
-          logger.warning("script stderr:")
+          logger.debug("Hook '%s' script stderr:" % script)
           logger.warning(stderr)
     except:
       logger.warning("Failed to execute hook '%s'!" % script)
