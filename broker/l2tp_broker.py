@@ -792,15 +792,18 @@ class TunnelManager(object):
     # Execute the registered hook
     logger.debug("Executing hook '%s' via script '%s %s'." % (name, script, str([str(x) for x in args])))
     try:
-      script_process = gevent.subprocess.Popen([script] + [str(x) for x in args], stdout=gevent.subprocess.PIPE, stderr=gevent.subprocess.PIPE)
+      script_process = gevent_subprocess.Popen([script] + [str(x) for x in args],
+        stdout=gevent_subprocess.PIPE,
+        stderr=gevent_subprocess.PIPE)
+
       stdout, stderr = script_process.communicate()
 
       if stdout:
-          logger.debug("Hook '%s' script stdout:" % script)
-          logger.debug(stdout)
+        logger.debug("Hook '%s' script stdout:" % script)
+        logger.debug(stdout)
       if stderr:
-          logger.debug("Hook '%s' script stderr:" % script)
-          logger.warning(stderr)
+        logger.debug("Hook '%s' script stderr:" % script)
+        logger.warning(stderr)
     except:
       logger.warning("Failed to execute hook '%s'!" % script)
       logger.warning(traceback.format_exc())
