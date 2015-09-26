@@ -334,7 +334,7 @@ int context_reinitialize(l2tp_context *ctx)
   if (ctx->force_iface) {
     int rc;
 
-    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->force_iface, strlen(ctx->force_iface));
+    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->force_iface, strlen(ctx->force_iface) + 1);
     if (rc != 0) {
       syslog(LOG_ERR, "Failed to bind to device!");
       return -1;
