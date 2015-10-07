@@ -1202,11 +1202,6 @@ if __name__ == '__main__':
       print "ERROR: Must be root."
       sys.exit(1)
 
-    if not check_for_modules():
-      print "ERROR: You must install the following kernel modules:"
-      print ",".join(required_modules)
-      sys.exit(1)
-
     # Parse configuration (first argument must be the location of the configuration
     # file)
     config = ConfigParser.SafeConfigParser()
@@ -1217,6 +1212,17 @@ if __name__ == '__main__':
       sys.exit(1)
     except IndexError:
       print "ERROR: First argument must be a configuration file path!"
+      sys.exit(1)
+
+    do_check_modules = True
+    try:
+      do_check_modules = config.getboolean("broker", "check_modules")
+    except ConfigParser.NoOptionError:
+      pass
+
+    if do_check_modules and not check_for_modules():
+      print "ERROR: You must install the following kernel modules:"
+      print ",".join(required_modules)
       sys.exit(1)
 
     setup_logging(config)

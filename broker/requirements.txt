@@ -1,6 +1,6 @@
-construct==2.5.1
-gevent==1.0
-greenlet==0.4.2
--e git+https://github.com/jlaine/python-netfilter.git@aa90d1a5f42a5eb02ba58e662728ed84c681ff18#egg=python_netfilter-master
-repoze.lru==0.5
-six==1.5.2
+construct==2.5.2
+gevent==1.0.2
+greenlet==0.4.9
+netfilter==0.6.2
+repoze.lru==0.6
+six==1.9.0
