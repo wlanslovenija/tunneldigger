@@ -1204,17 +1204,24 @@ int main(int argc, char **argv)
         ready_cnt += brokers[i].ctx->standby_available ? 1 : 0;
       }
 
-      if (ready_cnt == broker_cnt || (is_timeout(&timer_collect, 20) && ready_cnt > 0))
+      if (ready_cnt == broker_cnt || is_timeout(&timer_collect, 20))
         break;
     }
 
     // Select the first available broker and use it to establish a tunnel
+    main_context = NULL;
     for (i = 0; i < broker_cnt; i++) {
       if (brokers[i].ctx->standby_available) {
         brokers[i].ctx->standby_only = 0;
         main_context = brokers[i].ctx;
         break;
       }
+    }
+
+    // If no broker has been selected, restart broker selection
+    if (!main_context) {
+      syslog(LOG_ERR, "No suitable brokers found.");
+      continue;
     }
 
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
