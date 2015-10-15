@@ -393,14 +393,13 @@ class Tunnel(gevent.Greenlet):
     self.next_session_id = 1
     self.id = -1
     self.keep_alive()
-    self.__keepalive_seqno = 0
+    self._last_keepalive_sequence_number = 0
 
-  @property
-  def _keepalive_seqno(self):
-    self.__keepalive_seqno += 1
-    if self.__keepalive_seqno >= (2**32):
-        self.__keepalive_seqno = 0
-    return self.__keepalive_seqno
+  def _next_keepalive_sequence_number(self):
+    self._last_keepalive_sequence_number += 1
+    if self._last_keepalive_sequence_number >= (2**32):
+        self._last_keepalive_sequence_number = 0
+    return self._last_keepalive_sequence_number
 
   def setup(self):
     """
@@ -428,7 +427,7 @@ class Tunnel(gevent.Greenlet):
     """
     while True:
       self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE,
-          cs.UBInt32("size").build(self._keepalive_seqno))
+          cs.UBInt32("size").build(self._next_keepalive_sequence_number()))
 
       # Check if we are still alive or not; if not, kill the tunnel
       timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")
