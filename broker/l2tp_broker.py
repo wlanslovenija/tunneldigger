@@ -393,6 +393,14 @@ class Tunnel(gevent.Greenlet):
     self.next_session_id = 1
     self.id = -1
     self.keep_alive()
+    self.__keepalive_seqno = 0
+
+  @property
+  def _keepalive_seqno(self):
+    self.__keepalive_seqno += 1
+    if self.__keepalive_seqno >= (2**32):
+        self.__keepalive_seqno = 0
+    return self.__keepalive_seqno
 
   def setup(self):
     """
@@ -415,9 +423,12 @@ class Tunnel(gevent.Greenlet):
     """
     Periodically transmits keepalives over the tunnel and checks
     if the tunnel has timed out due to inactivity.
+    The sequence number is needed because some ISP (usually cable or mobile operators)
+    do some "optimisation" and drop udp packets containing the same content.
     """
     while True:
-      self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE)
+      self.handler.send_message(self.socket, CONTROL_TYPE_KEEPALIVE,
+          cs.UBInt32("size").build(self._keepalive_seqno))
 
       # Check if we are still alive or not; if not, kill the tunnel
       timeout_interval = self.manager.config.getint("broker", "tunnel_timeout")

@@ -148,6 +148,10 @@ typedef struct {
   int nl_family;
   // Sequence number for reliable messages
   uint16_t reliable_seqno;
+
+  // Sequence number for keep alive
+  uint32_t keepalive_seqno;
+
   // List of unacked reliable messages
   reliable_message *reliable_unacked;
 
@@ -352,6 +356,7 @@ int context_reinitialize(l2tp_context *ctx)
 
   ctx->standby_only = 1;
   ctx->standby_available = 0;
+  ctx->keepalive_seqno = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
     reliable_message *next = ctx->reliable_unacked->next;
@@ -929,9 +934,17 @@ void context_process(l2tp_context *ctx)
       break;
     }
     case STATE_KEEPALIVE: {
-      // Send periodic keepalive messages
-      if (is_timeout(&ctx->timer_keepalive, 5))
-        context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, NULL, 0);
+      /* Send periodic keepalive messages
+       * The sequence number is needed because some ISP (usually cable or mobile operators)
+       * do some "optimisation" and drop udp packets containing the same content.
+       */
+      if (is_timeout(&ctx->timer_keepalive, 5)) {
+        char buffer[4];
+        unsigned char *buf = (unsigned char*) &buffer;
+        put_u32(&buf, ctx->keepalive_seqno);
+        context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, buffer, 4);
+        ctx->keepalive_seqno++;
+      }
 
       // Send periodic PMTU probes
       if (is_timeout(&ctx->timer_pmtu_reprobe, ctx->pmtu_reprobe_interval)) {
