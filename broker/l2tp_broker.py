@@ -393,13 +393,13 @@ class Tunnel(gevent.Greenlet):
     self.next_session_id = 1
     self.id = -1
     self.keep_alive()
-    self._last_keepalive_sequence_number = 0
+    self.last_keepalive_sequence_number = 0
 
   def _next_keepalive_sequence_number(self):
-    self._last_keepalive_sequence_number += 1
-    if self._last_keepalive_sequence_number >= (2**32):
-        self._last_keepalive_sequence_number = 0
-    return self._last_keepalive_sequence_number
+    self.last_keepalive_sequence_number += 1
+    if self.last_keepalive_sequence_number >= (2**32):
+        self.last_keepalive_sequence_number = 0
+    return self.last_keepalive_sequence_number
 
   def setup(self):
     """
