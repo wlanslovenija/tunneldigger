@@ -1178,10 +1178,16 @@ class BaseControl(gevent.Greenlet):
     Sets up the main control socket and starts processing incoming
     messages.
     """
+
     # Setup the base control socket that listens for initial incoming
-    # tunnel setup requests
+    # tunnel setup requests.
     socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
-    socket.bind((self.manager.address, self.port))
+    try:
+      socket.bind((self.manager.address, self.port))
+    except gsocket.error:
+      # Skip port which cannot be bound.
+      logger.warning("Failed to bind to port '%d', skipping port." % port)
+      return
 
     while True:
       # Wait that some message becomes available from the socket
@@ -1237,7 +1243,7 @@ if __name__ == '__main__':
 
     setup_logging(config)
 
-    # Setup the base control server
+    # Setup the base control server.
     manager = TunnelManager(config)
     bases = []
     for port in manager.ports:
