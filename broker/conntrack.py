@@ -31,7 +31,11 @@ from threading import Thread, Lock
 from socket import AF_INET, AF_INET6, IPPROTO_TCP, IPPROTO_UDP
 
 nfct = CDLL('libnetfilter_conntrack.so.3')
-libc = CDLL('libc.so.6')
+try:
+    libc = CDLL('libc.so.6')
+except OSError:
+    # Support OpenWRT.
+    libc = CDLL('libc.so.0')
 
 
 NFCT_CALLBACK = CFUNCTYPE(c_int, c_int, c_void_p, c_void_p)
@@ -400,7 +404,7 @@ class ConnectionManager(object):
             raise ConntrackQueryFailed("nfct_query failed!")
 
         nfct.nfct_close(h)
-  
+
     def killall(self, proto = None, src = None, dst = None, sport = None, dport = None):
         '''Removes specified conntrack entries.'''
         tct = nfct.nfct_new()
@@ -430,7 +434,7 @@ class ConnectionManager(object):
             nfct.nfct_set_attr_u16(tct, ATTR_PORT_DST, libc.htons(dport))
 
         kh = nfct.nfct_open(CONNTRACK, 0)
-        
+
         if not kh:
             libc.perror("nfct_open")
             raise ConntrackError("nfct_open failed!")
@@ -439,7 +443,7 @@ class ConnectionManager(object):
         def cb(type, ct, data):
             if not nfct.nfct_cmp(tct, ct, NFCT_CMP_ALL | NFCT_CMP_MASK):
                 return NFCT_CB_CONTINUE
-             
+
             # Remove the matched item
             nfct.nfct_query(kh, NFCT_Q_DESTROY, ct)
             return NFCT_CB_CONTINUE
