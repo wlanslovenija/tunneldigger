@@ -1186,7 +1186,7 @@ class BaseControl(gevent.Greenlet):
       socket.bind((self.manager.address, self.port))
     except gsocket.error:
       # Skip port which cannot be bound.
-      logger.warning("Failed to bind to port '%d', skipping port." % port)
+      logger.warning("Failed to bind to port '%d', skipping port." % self.port)
       return
 
     while True:
