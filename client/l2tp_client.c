@@ -1134,8 +1134,8 @@ int main(int argc, char **argv)
   broker_cfg brokers[MAX_BROKERS];
   int broker_cnt = 0;
 
-  char c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:")) != EOF) {
+  int c;
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:")) != -1) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
