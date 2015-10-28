@@ -1093,6 +1093,43 @@ void context_free(l2tp_context *ctx)
   free(ctx);
 }
 
+// List of brokers
+typedef struct {
+  char *address;
+  char *port;
+  l2tp_context *ctx;
+} broker_cfg;
+#define MAX_BROKERS 10
+
+int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the first available broker and use it to establish a tunnel
+  int i;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available) {
+      brokers[i].ctx->standby_only = 0;
+      brokers[i].ctx->state = STATE_GET_COOKIE;
+      return i;
+    }
+  }
+  return -1;
+}
+
+int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the r'th available broker and use it to establish a tunnel
+  int i;
+  int r = rand() % ready_cnt;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available && (r-- == 0)) {
+      brokers[i].ctx->standby_only = 0;
+      brokers[i].ctx->state = STATE_GET_COOKIE;
+      return i;
+    }
+  }
+  return -1;
+}
+
 void term_handler(int signum)
 {
   (void) signum; /* unused */
@@ -1125,6 +1162,8 @@ void show_help(const char *app)
     "       -s hook       hook script\n"
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
+    "       -g            select first available broker to connect to\n"
+    "       -r            select a random broker\n"
   );
 }
 
@@ -1149,24 +1188,20 @@ int main(int argc, char **argv)
   unsigned int tunnel_id = 1;
   int limit_bandwidth_down = 0;
 
-  // List of brokers
-  typedef struct {
-    char *address;
-    char *port;
-    l2tp_context *ctx;
-  } broker_cfg;
-#define MAX_BROKERS 10
-
   broker_cfg brokers[MAX_BROKERS];
+  int (*select_broker)(broker_cfg *, int, int) = broker_selector_first_available;
   int broker_cnt = 0;
 
   int c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:")) != -1) {
+  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:gr")) != -1) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
         return 1;
       }
+      case 'g': select_broker = broker_selector_first_available; break;
+      case 'r': select_broker = broker_selector_random; break;
+
       case 'f': log_option |= LOG_PERROR; break;
       case 'u': uuid = strdup(optarg); break;
       case 'l': local_ip = strdup(optarg); break;
@@ -1255,8 +1290,9 @@ int main(int argc, char **argv)
     // (whichever is shorter); since all contexts are in standby mode, all
     // available connections will be stuck in GET_COOKIE state
     time_t timer_collect = timer_now();
+    int ready_cnt = 0;
     for (;;) {
-      int ready_cnt = 0;
+      ready_cnt = 0;
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
       }
@@ -1267,24 +1303,20 @@ int main(int argc, char **argv)
 
       if (ready_cnt == broker_cnt || is_timeout(&timer_collect, 20))
         break;
-    }
 
-    // Select the first available broker and use it to establish a tunnel
-    main_context = NULL;
-    for (i = 0; i < broker_cnt; i++) {
-      if (brokers[i].ctx->standby_available) {
-        brokers[i].ctx->standby_only = 0;
-        main_context = brokers[i].ctx;
+      // First available broker just use the first one available 
+      if (select_broker == broker_selector_first_available && ready_cnt > 0)
         break;
-      }
     }
 
-    // If no broker has been selected, restart broker selection
-    if (!main_context) {
-      syslog(LOG_ERR, "No suitable brokers found.");
+    i = select_broker(brokers, broker_cnt, ready_cnt);
+    if (i == -1) {
+      syslog(LOG_ERR, "No suitable brokers found. Retrying in 5 seconds");
+      sleep(5);
       continue;
     }
 
+    main_context = brokers[i].ctx;
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
 
