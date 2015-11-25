@@ -1,0 +1,18 @@
+language: python
+python:
+ - 2.7
+sudo: required
+dist: trusty
+install:
+  - sudo add-apt-repository universe
+  - sudo apt-get -qq update
+  - sudo apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq --assume-no install bison build-essential flex gawk gettext git git-core libncurses5-dev libssl-dev lxc m4 subversion unzip zlib1g-dev python3-lxc python3-nose
+  - sudo modprobe l2tp_netlink
+  - sudo modprobe l2tp_ip
+  - sudo modprobe l2tp_eth
+  - sudo modprobe nf_conntrack
+  - sudo modprobe nf_conntrack_netlink
+  - sudo iptables -t nat -L >/dev/null
+  - sudo /usr/bin/python3 ./tests/tunneldigger.py --setup
+script:
+  - sudo sh ./tests/travis.sh
