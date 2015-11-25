@@ -97,6 +97,18 @@ enum l2tp_ctrl_type {
   CONTROL_TYPE_LIMIT     = 0x80,
 };
 
+enum l2tp_error_type {
+  ERROR_REASON_OTHER_REQUEST  = 0x00,
+  ERROR_REASON_SHUTDOWN       = 0x01,
+  ERROR_REASON_TIMEOUT        = 0x02,
+  ERROR_REASON_FAILURE        = 0x03,
+};
+
+enum l2tp_error_direction {
+  ERROR_DIRECTION_SERVER = 0x00,
+  ERROR_DIRECTION_CLIENT = 0x10,
+};
+
 enum l2tp_limit_type {
   LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
 };
@@ -188,7 +200,7 @@ typedef struct {
 
 // Forward declarations
 void context_delete_tunnel(l2tp_context *ctx);
-void context_close_tunnel(l2tp_context *ctx);
+void context_close_tunnel(l2tp_context *ctx, uint8_t reason);
 int context_session_set_mtu(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
@@ -469,6 +481,7 @@ void context_process_control_packet(l2tp_context *ctx)
 
   uint8_t type = parse_u8(&buf);
   uint8_t payload_length = parse_u8(&buf);
+  uint8_t error_code = 0;
 
   // Each received packet counts as a liveness indicator
   ctx->last_alive = timer_now();
@@ -490,12 +503,21 @@ void context_process_control_packet(l2tp_context *ctx)
       break;
     }
     case CONTROL_TYPE_ERROR: {
+      if (payload_length > 0) {
+        error_code = parse_u8(&buf);
+      }
       if (ctx->state == STATE_GET_TUNNEL) {
-        syslog(LOG_WARNING, "Received error response from broker!");
+        if (payload_length > 0)
+          syslog(LOG_WARNING, "Received error response from broker with errorcode %d!", error_code);
+        else
+          syslog(LOG_WARNING, "Received error response from broker!");
         ctx->state = STATE_GET_COOKIE;
       } else if (ctx->state == STATE_KEEPALIVE) {
-        syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel!");
-        context_close_tunnel(ctx);
+        if (payload_length > 0)
+          syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel with errorcode %d!", error_code);
+        else
+          syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel!");
+        context_close_tunnel(ctx, ERROR_REASON_OTHER_REQUEST);
       }
       break;
     }
@@ -844,10 +866,12 @@ int context_session_set_mtu(l2tp_context *ctx)
   return 0;
 }
 
-void context_close_tunnel(l2tp_context *ctx)
+void context_close_tunnel(l2tp_context *ctx, uint8_t reason)
 {
+  reason |= ERROR_DIRECTION_CLIENT;
+
   // Notify the broker that the tunnel has been closed
-  context_send_packet(ctx, CONTROL_TYPE_ERROR, NULL, 0);
+  context_send_packet(ctx, CONTROL_TYPE_ERROR, &reason, 1);
 
   // Call down hook, delete the tunnel and set state to reinit
   context_call_hook(ctx, "session.down");
@@ -1006,7 +1030,7 @@ void context_process(l2tp_context *ctx)
       // Check if the tunnel is still alive
       if (timer_now() - ctx->last_alive > 60) {
         syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
-        context_close_tunnel(ctx);
+        context_close_tunnel(ctx, ERROR_REASON_TIMEOUT);
       }
       break;
     }
@@ -1046,7 +1070,7 @@ void term_handler(int signum)
   syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
 
   if (main_context) {
-    context_close_tunnel(main_context);
+    context_close_tunnel(main_context, ERROR_REASON_SHUTDOWN);
     main_context = NULL;
   }
 
