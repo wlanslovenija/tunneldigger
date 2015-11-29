@@ -291,7 +291,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
 
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
-  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr.s_addr) < 0) {
+  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr) < 0) {
     syslog(LOG_ERR, "Failed to parse local endpoint!");
     goto free_and_return;
   }
