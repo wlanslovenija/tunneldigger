@@ -291,7 +291,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
 
   ctx->local_endpoint.sin_family = AF_INET;
   ctx->local_endpoint.sin_port = 0;
-  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr.s_addr) < 0) {
+  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr) < 0) {
     syslog(LOG_ERR, "Failed to parse local endpoint!");
     goto free_and_return;
   }
@@ -1066,6 +1066,18 @@ void context_process(l2tp_context *ctx)
   }
 }
 
+void cleanup()
+{
+  if (main_context) {
+    context_close_tunnel(main_context, ERROR_REASON_SHUTDOWN);
+    context_free(main_context);
+    main_context = NULL;
+  }
+
+  if (asyncns_context)
+    asyncns_free(asyncns_context);
+}
+
 void context_free(l2tp_context *ctx)
 {
   if (!ctx) {
@@ -1087,11 +1099,7 @@ void term_handler(int signum)
 
   syslog(LOG_WARNING, "Got termination signal, shutting down tunnel...");
 
-  if (main_context) {
-    context_close_tunnel(main_context, ERROR_REASON_SHUTDOWN);
-    main_context = NULL;
-  }
-
+  cleanup();
   exit(1);
 }
 
@@ -1168,15 +1176,14 @@ int main(int argc, char **argv)
           return 1;
         }
 
-        char *address = strtok(optarg, ":");
-        char *port = strtok(NULL, ":");
-        if (!address || !port) {
+        char *pos = strchr(optarg, ':');
+        if (!pos) {
           fprintf(stderr, "ERROR: Each broker must be passed in the format 'host:port'!\n");
           return 1;
         }
 
-        brokers[broker_cnt].address = strdup(address);
-        brokers[broker_cnt].port = strdup(port);
+        brokers[broker_cnt].address = strndup(optarg, pos - optarg);
+        brokers[broker_cnt].port = strdup(pos + 1);
         brokers[broker_cnt].ctx = NULL;
         broker_cnt++;
         break;
@@ -1317,8 +1324,7 @@ int main(int argc, char **argv)
     main_context = NULL;
   }
 
-  if (asyncns_context)
-    asyncns_free(asyncns_context);
+  cleanup();
 
   return 0;
 }
