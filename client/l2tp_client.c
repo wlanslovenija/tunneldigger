@@ -467,7 +467,8 @@ void context_process_control_packet(l2tp_context *ctx)
   ssize_t bytes = recvfrom(ctx->fd, &buffer, sizeof(buffer), 0, (struct sockaddr*) &endpoint,
     &endpoint_len);
 
-  if (bytes < 0)
+  /* a valid package must at least 6 byte long */
+  if (bytes < 6)
     return;
 
   // Decode packet header
@@ -483,6 +484,9 @@ void context_process_control_packet(l2tp_context *ctx)
   uint8_t payload_length = parse_u8(&buf);
   uint8_t error_code = 0;
 
+  if (payload_length > (bytes - 6))
+    return;
+
   // Each received packet counts as a liveness indicator
   ctx->last_alive = timer_now();
 
@@ -490,7 +494,10 @@ void context_process_control_packet(l2tp_context *ctx)
   switch (type) {
     case CONTROL_TYPE_COOKIE: {
       if (ctx->state == STATE_GET_COOKIE) {
-        memcpy(&ctx->cookie, buf, payload_length);
+        if (payload_length != 8)
+          break;
+
+        memcpy(&ctx->cookie, buf, 8);
 
         // Mark the connection as being available for later establishment
         ctx->standby_available = 1;
@@ -523,6 +530,9 @@ void context_process_control_packet(l2tp_context *ctx)
     }
     case CONTROL_TYPE_TUNNEL: {
       if (ctx->state == STATE_GET_TUNNEL) {
+        if (payload_length != 4)
+          break;
+
         if (context_setup_tunnel(ctx, parse_u32(&buf)) < 0) {
           syslog(LOG_ERR, "Unable to create local L2TP tunnel!");
           ctx->state = STATE_GET_COOKIE;
@@ -549,6 +559,8 @@ void context_process_control_packet(l2tp_context *ctx)
     }
     case CONTROL_TYPE_PMTUD_ACK: {
       if (ctx->state == STATE_KEEPALIVE) {
+        if (payload_length != 2)
+          break;
         // Process a PMTU probe
         uint16_t psize = parse_u16(&buf) + IPV4_HDR_OVERHEAD;
         if (psize > ctx->probed_pmtu)
@@ -558,6 +570,9 @@ void context_process_control_packet(l2tp_context *ctx)
     }
     case CONTROL_TYPE_PMTU_NTFY: {
       if (ctx->state == STATE_KEEPALIVE) {
+        if (payload_length != 2)
+          break;
+
         // Process a peer PMTU notification message
         uint16_t pmtu = parse_u16(&buf);
         if (pmtu != ctx->peer_pmtu) {
@@ -568,6 +583,9 @@ void context_process_control_packet(l2tp_context *ctx)
       break;
     }
     case CONTROL_TYPE_REL_ACK: {
+      if (payload_length != 2)
+        break;
+
       // ACK of a reliable message
       uint16_t seqno = parse_u16(&buf);
       reliable_message *msg = ctx->reliable_unacked;
