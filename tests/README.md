@@ -22,13 +22,12 @@ will do a test run using HEAD for the server and the client.
 
 * generate a build hash
 * checkout the repository
-* clone containers based on container tunneldigger-base, naming them hash_client hash_server
-* start the scripts prepare_client prepare_server in their containres
-* start the scripts run_client run_server
-* do a simple wget test
+* clone containers based on container `tunneldigger-base`, naming them `hash_client` and `hash_server`
+* start the scripts `prepare_client.sh` and `prepare_server.sh` in their containers
+* start the scripts `run_client.sh` and `run_server.sh`
+* do a simple `wget` test
 
 ## Future
 
 * clean up environment if the test fails (stop containers + remove them)
 * use pynose for testing. Should also fix the missing clean up.
-

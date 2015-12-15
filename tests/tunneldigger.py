@@ -201,13 +201,13 @@ def prepare_containers(context, client_rev, server_rev):
             raise RuntimeError("Container doesn't have an internet connection %s" % cont.name)
 
     LOG.info("ctx %s prepare server", context)
-    ret = server.attach_wait(lxc.attach_run_command, ['/testing/prepare_server', server_rev])
+    ret = server.attach_wait(lxc.attach_run_command, ['/testing/prepare_server.sh', server_rev])
     if ret != 0:
         raise RuntimeError("Failed to prepare the server")
     LOG.info("ctx %s finished prepare server", context)
 
     LOG.info("ctx %s prepare client", context)
-    ret = client.attach_wait(lxc.attach_run_command, ['/testing/prepare_client', client_rev])
+    ret = client.attach_wait(lxc.attach_run_command, ['/testing/prepare_client.sh', client_rev])
     if ret != 0:
         raise RuntimeError("Failed to prepare the server")
     LOG.info("ctx %s finished prepare client", context)
@@ -217,14 +217,14 @@ def run_server(server):
     """ run_server(server)
     server is a container
     """
-    spid = server.attach(lxc.attach_run_command, ['/testing/run_server'])
+    spid = server.attach(lxc.attach_run_command, ['/testing/run_server.sh'])
     return spid
 
 def run_client(client):
     """ run_client(client)
     client is a container
     """
-    cpid = client.attach(lxc.attach_run_command, ['/testing/run_client'])
+    cpid = client.attach(lxc.attach_run_command, ['/testing/run_client.sh'])
     return cpid
 
 def run_tests(server, client):
