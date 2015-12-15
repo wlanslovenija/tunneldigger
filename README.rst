@@ -25,10 +25,18 @@ discuss the project, use `development mailing list`_.
 Contributors
 ------------
 
-* [@kostko](https://github.com/kostko)
-* [@lynxis](https://github.com/lynxis)
-* [@mitar](https://github.com/mitar)
-* [@max-b](https://github.com/max-b)
-* [@mehlix](https://github.com/mehlis)
-* [@valentt](https://github.com/valentt)
-* [@papazoga](https://github.com/papazoga)
+* `@kostko`_
+* `@lynxis`_
+* `@mitar`_
+* `@max-b`_
+* `@mehlix`_
+* `@valentt`_
+* `@papazoga`_
+
+.. _@kostko: https://github.com/kostko
+.. _@lynxis: https://github.com/lynxis
+.. _@mitar: https://github.com/mitar
+.. _@max-b: https://github.com/max-b
+.. _@mehlix: https://github.com/mehlis
+.. _@valentt: https://github.com/valentt
+.. _@papazoga: https://github.com/papazoga

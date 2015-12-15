@@ -32,6 +32,7 @@ discuss the project, use `development mailing list`_.
 
 Contributors
 ------------
+
 * `@kostko`_
 * `@lynxis`_
 * `@mitar`_
