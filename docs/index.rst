@@ -30,6 +30,24 @@ discuss the project, use `development mailing list`_.
 .. _GitHub: https://github.com/wlanslovenija/tunneldigger
 .. _development mailing list: https://wlan-si.net/lists/info/development
 
+Contributors
+------------
+* `@kostko`_
+* `@lynxis`_
+* `@mitar`_
+* `@max-b`_
+* `@mehlix`_
+* `@valentt`_
+* `@papazoga`_
+
+.. _@kostko: https://github.com/kostko
+.. _@lynxis: https://github.com/lynxis
+.. _@mitar: https://github.com/mitar
+.. _@max-b: https://github.com/max-b
+.. _@mehlix: https://github.com/mehlis
+.. _@valentt: https://github.com/valentt
+.. _@papazoga: https://github.com/papazoga
+
 Indices and Tables
 ==================
 

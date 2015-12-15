@@ -21,3 +21,14 @@ discuss the project, use `development mailing list`_.
 .. _open a new one: https://dev.wlan-si.net/newticket
 .. _GitHub: https://github.com/wlanslovenija/tunneldigger
 .. _development mailing list: https://wlan-si.net/lists/info/development
+
+Contributors
+------------
+
+* [@kostko](https://github.com/kostko)
+* [@lynxis](https://github.com/lynxis)
+* [@mitar](https://github.com/mitar)
+* [@max-b](https://github.com/max-b)
+* [@mehlix](https://github.com/mehlis)
+* [@valentt](https://github.com/valentt)
+* [@papazoga](https://github.com/papazoga)
