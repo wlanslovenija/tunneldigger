@@ -136,6 +136,7 @@ SIOCSIFMTU = 0x8922
 # Socket options
 IP_MTU_DISCOVER = 10
 IP_PMTUDISC_PROBE = 3
+SO_BINDTODEVICE = 25
 
 # L2TP generic netlink
 L2TP_GENL_NAME = "l2tp"
@@ -1207,6 +1208,7 @@ class BaseControl(gevent.Greenlet):
     socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
     try:
       socket.bind((self.manager.address, self.port))
+      socket.setsockopt(gsocket.SOL_SOCKET, SO_BINDTODEVICE, self.manager.interface)
     except gsocket.error:
       # Skip port which cannot be bound.
       logger.warning("Failed to bind to port '%d', skipping port." % self.port)
