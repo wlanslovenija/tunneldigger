@@ -653,6 +653,7 @@ class Tunnel(gevent.Greenlet):
     try:
       self.socket = gsocket.socket(gsocket.AF_INET, gsocket.SOCK_DGRAM)
       self.socket.bind((self.manager.address, self.port))
+      self.socket.setsockopt(gsocket.SOL_SOCKET, SO_BINDTODEVICE, self.manager.interface)
       self.socket.connect(self.endpoint)
       self.socket.setsockopt(gsocket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_PROBE)
     except gsocket.error:
