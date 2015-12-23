@@ -58,7 +58,9 @@ event_loop = eventloop.EventLoop()
 hook_manager = hooks.HookManager(event_loop)
 for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-changed'):
     try:
-        script = config.get('hooks', hook)
+        script = config.get('hooks', hook).strip()
+        if not script:
+            continue
     except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
         continue
 
