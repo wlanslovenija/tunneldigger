@@ -173,7 +173,18 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         # Update MTU.
         self.update_mtu(initial=True)
 
-        # TODO: Call session set up hooks.
+        # Call session up hook.
+        self.broker.hook_manager.run_hook(
+            'session.up',
+            self.tunnel_id,
+            1,
+            self.get_session_name(1),
+            self.tunnel_mtu,
+            self.endpoint[0],
+            self.endpoint[1],
+            self.address[1],
+            self.uuid,
+        )
 
     def pmtu_discovery(self):
         """
@@ -211,6 +222,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         if not initial and detected_pmtu == self.tunnel_mtu:
             return
 
+        old_tunnel_mtu = self.tunnel_mtu
         self.tunnel_mtu = detected_pmtu
         logger.info("Set tunnel %d MTU to %d." % (self.tunnel_id, detected_pmtu))
 
@@ -225,11 +237,16 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.broker.netlink.session_modify(self.tunnel_id, 1, self.tunnel_mtu)
 
         if not initial:
-            # TODO: MTU change hook.
-            # Invoke MTU change hook for each session
-            #  self.manager.hook('session.mtu-changed', self.id, session.id, session.name, self.tunnel_mtu,
-            #    detected_pmtu, self.uuid)
-            pass
+            # Run MTU changed hook.
+            self.broker.hook_manager.run_hook(
+                'session.mtu-changed',
+                self.tunnel_id,
+                1,
+                self.get_session_name(1),
+                old_tunnel_mtu,
+                self.tunnel_mtu,
+                self.uuid,
+            )
 
     def keepalive(self):
         """
@@ -254,9 +271,33 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         logger.info("Closing tunnel %d." % self.tunnel_id)
 
-        # TODO: Pre-down hook.
+        # Run pre-down hook.
+        self.broker.hook_manager.run_hook(
+            'session.pre-down',
+            self.tunnel_id,
+            1,
+            self.get_session_name(1),
+            self.tunnel_mtu,
+            self.endpoint[0],
+            self.endpoint[1],
+            self.address[1],
+            self.uuid,
+        )
+
         self.broker.netlink.session_delete(self.tunnel_id, 1)
-        # TODO: Down hook.
+
+        # Run down hook.
+        self.broker.hook_manager.run_hook(
+            'session.down',
+            self.tunnel_id,
+            1,
+            self.get_session_name(1),
+            self.tunnel_mtu,
+            self.endpoint[0],
+            self.endpoint[1],
+            self.address[1],
+            self.uuid,
+        )
 
         # Transmit error message so the other end can tear down the tunnel
         # immediately instead of waiting for keepalive timeout.

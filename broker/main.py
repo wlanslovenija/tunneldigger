@@ -5,7 +5,7 @@ import os
 import socket
 import sys
 
-from . import broker, eventloop
+from . import broker, eventloop, hooks
 
 if os.getuid() != 0:
     print "ERROR: The tunneldigger broker must be run as root."
@@ -54,8 +54,20 @@ logger.info("Initializing the tunneldigger broker.")
 # Initialize the event loop.
 event_loop = eventloop.EventLoop()
 
+# Initialize the hook manager.
+hook_manager = hooks.HookManager(event_loop)
+for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-changed'):
+    try:
+        script = config.get('hooks', hook)
+    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+        continue
+
+    hook_manager.register_hook(hook, script)
+    logger.info("Registered script '%s' for hook '%s'." % (script, hook))
+
 # Initialize the tunnel manager.
 tunnel_manager = broker.TunnelManager(
+    hook_manager=hook_manager,
     max_tunnels=config.getint('broker', 'max_tunnels'),
     tunnel_id_base=config.getint('broker', 'tunnel_id_base'),
     tunnel_port_base=config.getint('broker', 'port_base'),

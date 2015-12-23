@@ -23,11 +23,13 @@ class EventLoop(object):
         :param flags: Epoll flags
         """
 
+        raw_file_object = file_object
+
         if hasattr(file_object, 'fileno'):
             file_object = file_object.fileno()
 
         self.poller.register(file_object, flags)
-        self.pollables[file_object] = pollable
+        self.pollables[file_object] = (pollable, raw_file_object)
 
     def unregister(self, fd):
         """
@@ -46,9 +48,11 @@ class EventLoop(object):
 
         while True:
             for fd, event in self.poller.poll():
-                pollable = self.pollables.get(fd, None)
-                if not pollable:
+                mapping = self.pollables.get(fd, None)
+                if not mapping:
                     continue
 
+                pollable, file_object = mapping
+
                 if event & select.EPOLLIN:
-                    pollable.read()
+                    pollable.read(file_object)

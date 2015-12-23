@@ -16,16 +16,18 @@ class TunnelManager(object):
     Tunnel manager.
     """
 
-    def __init__(self, max_tunnels, tunnel_id_base, tunnel_port_base, namespace):
+    def __init__(self, hook_manager, max_tunnels, tunnel_id_base, tunnel_port_base, namespace):
         """
         Constructs a tunnel manager.
 
+        :param hook_manager: Hook manager
         :param max_tunnels: Maximum number of tunnels to allow
         :param tunnel_id_base: Base local tunnel identifier
         :param tunnel_port_base: Base local tunnel port
         :param namespace: Netfilter namespace to use
         """
 
+        self.hook_manager = hook_manager
         self.max_tunnels = max_tunnels
         self.tunnel_id_base = tunnel_id_base
         self.tunnel_ids = set(xrange(tunnel_id_base, tunnel_id_base + max_tunnels + 1))
@@ -168,6 +170,8 @@ class TunnelManager(object):
         nat = netfilter.table.Table('nat')
         nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
         nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
+        nat.flush_chain('L2TP_PREROUTING_%s' % self.namespace)
+        nat.flush_chain('L2TP_POSTROUTING_%s' % self.namespace)
         nat.delete_chain('L2TP_PREROUTING_%s' % self.namespace)
         nat.delete_chain('L2TP_POSTROUTING_%s' % self.namespace)
 
@@ -192,6 +196,7 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
         super(Broker, self).__init__(address, interface)
 
         self.tunnel_manager = tunnel_manager
+        self.hook_manager = tunnel_manager.hook_manager
         self.conntrack = tunnel_manager.conntrack
         self.netlink = tunnel_manager.netlink
 

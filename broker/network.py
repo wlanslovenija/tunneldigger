@@ -84,7 +84,7 @@ class Pollable(object):
         timerfd.settime(timer, 0, timerfd.itimerspec(value=timeout, interval=interval))
 
         class Timer(object):
-            def read(timer_self):
+            def read(timer_self, file_object):
                 try:
                     if not os.read(timer, timerfd.bufsize):
                         return timer_self.close()
@@ -141,7 +141,7 @@ class Pollable(object):
 
         self.write(address, data)
 
-    def read(self):
+    def read(self, file_object):
         """
         Called by the event loop when there is new data to be read
         from the socket.
