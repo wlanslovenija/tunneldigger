@@ -68,7 +68,7 @@ class TunnelManager(object):
                 tunnel_id,
                 remote_tunnel_id
             )
-            tunnel.register(broker.poller, broker.pollables)
+            tunnel.register(broker.event_loop)
             tunnel.setup_tunnel()
             self.tunnels[tunnel_id] = tunnel
             self.last_tunnel_created = now

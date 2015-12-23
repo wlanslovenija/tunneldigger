@@ -40,29 +40,25 @@ class Pollable(object):
 
         self.address = address
         self.interface = interface
-        self.poller = None
-        self.pollables = None
+        self.event_loop = None
         self.timers = set()
 
-    def register(self, poller, pollables):
+    def register(self, event_loop):
         """
         Registers the pollable into the event loop.
 
-        :param poller: Event loop poller object
-        :param pollables: Event loop pollables dictionary
+        :param event_loop: Event loop instance
         """
 
-        poller.register(self.socket, select.EPOLLIN)
-        pollables[self.socket.fileno()] = self
-
-        self.poller = poller
-        self.pollables = pollables
+        event_loop.register(self, self.socket, select.EPOLLIN)
+        self.event_loop = event_loop
 
     def close(self):
         """
         Closes the underlying socket and stops all timers.
         """
 
+        self.event_loop.unregister(self.socket.fileno())
         self.socket.close()
 
         for timer in self.timers.copy():
@@ -78,7 +74,7 @@ class Pollable(object):
         :return: Timer object, which may be used to stop the timer
         """
 
-        if not self.poller or not self.pollables:
+        if not self.event_loop:
             raise PollableNotRegistered
 
         if interval is not None and timeout is None:
@@ -106,14 +102,12 @@ class Pollable(object):
                         timer_self.close()
 
             def close(timer_self):
-                self.poller.unregister(timer)
-                del self.pollables[timer]
+                self.event_loop.unregister(timer)
                 self.timers.remove(timer_self)
                 os.close(timer)
 
         handler = Timer()
-        self.poller.register(timer, select.EPOLLIN)
-        self.pollables[timer] = handler
+        self.event_loop.register(handler, timer, select.EPOLLIN)
         self.timers.add(handler)
         return handler
 

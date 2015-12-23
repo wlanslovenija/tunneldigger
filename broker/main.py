@@ -2,11 +2,10 @@ import ConfigParser
 import logging
 import logging.config
 import os
-import select
 import socket
 import sys
 
-from . import broker
+from . import broker, eventloop
 
 if os.getuid() != 0:
     print "ERROR: The tunneldigger broker must be run as root."
@@ -53,8 +52,7 @@ logger = logging.getLogger("tunneldigger.broker")
 logger.info("Initializing the tunneldigger broker.")
 
 # Initialize the event loop.
-pollables = {}
-poller = select.epoll()
+event_loop = eventloop.EventLoop()
 
 # Initialize the tunnel manager.
 tunnel_manager = broker.TunnelManager(
@@ -89,21 +87,14 @@ for port in config.get('broker', 'port').split(','):
         logger.warning("Failed to listen on %s:%s, skipping." % (broker_host, port))
         continue
 
-    broker_instance.register(poller, pollables)
+    broker_instance.register(event_loop)
     brokers.append(broker_instance)
 
 logger.info("Broker initialized.")
 
 try:
     # Start the main event loop.
-    while True:
-        for fd, event in poller.poll():
-            pollable = pollables.get(fd, None)
-            if not pollable:
-                continue
-
-            if event & select.EPOLLIN:
-                pollable.read()
+    event_loop.start()
 except KeyboardInterrupt:
     pass
 finally:
