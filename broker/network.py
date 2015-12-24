@@ -139,6 +139,11 @@ class Pollable(object):
         data += struct.pack('!BB', msg_type, len(msg_data))
         data += msg_data
 
+        # Pad the message to be at least 12 bytes long, as otherwise some firewalls
+        # may filter it when used over port 53.
+        if len(data) < 12:
+            data += '\x00' * (12 - len(data))
+
         self.write(address, data)
 
     def read(self, file_object):
@@ -162,7 +167,7 @@ class Pollable(object):
             raise
         except:
             logger.error("Unhandled exception during message processing.")
-            logger.debug(traceback.format_exc())
+            logger.error(traceback.format_exc())
 
     def message(self, address, msg_type, msg_data, raw_length):
         """

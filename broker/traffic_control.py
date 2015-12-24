@@ -1,7 +1,5 @@
 import os
 
-TC = '/sbin/tc'
-
 
 class TrafficControlError(Exception):
     pass
@@ -17,12 +15,12 @@ class TrafficControl(object):
 
         self.interface = interface
 
-    def tc(self, command, ignore_fails = False):
+    def tc(self, command, ignore_fails=False):
         """
         Executes a traffic control command.
         """
 
-        if os.system('%s %s' % (TC, command)) != 0 and not ignore_fails:
+        if os.system('tc %s' % (command)) != 0 and not ignore_fails:
             raise TrafficControlError
 
     def reset(self):
@@ -30,7 +28,7 @@ class TrafficControl(object):
         Clears all existing traffic control rules.
         """
 
-        self.tc('qdisc del dev %s root handle 1: htb default 0' % self.interface, ignore_fails = True)
+        self.tc('qdisc del dev %s root handle 1: htb default 0' % self.interface, ignore_fails=True)
         self.tc('qdisc add dev %s root handle 1: htb default 1' % self.interface)
 
     def set_fixed_bandwidth(self, bandwidth):

@@ -8,7 +8,7 @@ import socket
 import struct
 import time
 
-from . import l2tp, protocol, network
+from . import l2tp, protocol, network, limits
 
 # Socket options.
 IP_MTU_DISCOVER = 10
@@ -358,6 +358,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
             # The other side is performing PMTU discovery.
             self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTUD_ACK, struct.pack('!H', raw_length))
+            return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD_ACK:
             # The other side is acknowledging a specific PMTU value.
             pmtu = struct.unpack('!H', msg_data)[0] + IPV4_HDR_OVERHEAD
@@ -368,6 +369,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
                 # Notify the other side of our measured MTU.
                 self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
+
+            return True
         elif msg_type == protocol.CONTROL_TYPE_PMTU_NTFY:
             # The other side is notifying us about their tunnel MTU.
             remote_mtu = struct.unpack('!H', msg_data)[0]
@@ -375,12 +378,16 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             if remote_mtu != self.remote_tunnel_mtu:
                 self.remote_tunnel_mtu = remote_mtu
                 self.update_mtu()
+
+            return True
         elif msg_type & protocol.MASK_CONTROL_TYPE_RELIABLE:
             # Acknowledge reliable control messages.
             self.write_message(self.endpoint, protocol.CONTROL_TYPE_REL_ACK, msg_data[:2])
 
             if msg_type == protocol.CONTROL_TYPE_LIMIT:
-                # TODO: Client requests limit configuration.
+                # Client requests limit configuration.
+                limit_manager = limits.LimitManager(self, 1)
+                limit_manager.configure(msg_data[2:])
                 return True
 
         return False
