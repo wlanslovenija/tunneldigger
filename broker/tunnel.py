@@ -83,6 +83,13 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.pmtu_probe_size = None
         self.pmtu_probe_acked_mtu = 0
 
+    def get_tunnel_manager(self):
+        """
+        Returns the tunnel manager for this tunnel.
+        """
+
+        return self.broker.tunnel_manager
+
     def get_session_name(self, session_id):
         """
         Returns the interface name for a tunnel's session.

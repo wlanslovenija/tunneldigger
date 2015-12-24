@@ -15,6 +15,7 @@ CONTROL_TYPE_PMTUD     = 0x06
 CONTROL_TYPE_PMTUD_ACK = 0x07
 CONTROL_TYPE_REL_ACK   = 0x08
 CONTROL_TYPE_PMTU_NTFY = 0x09
+CONTROL_TYPE_USAGE     = 0x0A
 
 # Reliable messages (0x80 - 0xFF).
 MASK_CONTROL_TYPE_RELIABLE = 0x80
@@ -125,6 +126,13 @@ class HandshakeProtocolMixin(object):
                 self.write_message(address, CONTROL_TYPE_ERROR)
 
             return True
+        elif msg_type == CONTROL_TYPE_USAGE:
+            tunnel_manager = self.get_tunnel_manager()
+
+            # Compute tunnel usage information.
+            usage = int((float(len(tunnel_manager.tunnels)) / tunnel_manager.max_tunnels) * 65535)
+            usage = struct.pack('!H', usage)
+            self.write_message(address, CONTROL_TYPE_USAGE, usage)
         else:
             # Invalid message at this stage.
             return False

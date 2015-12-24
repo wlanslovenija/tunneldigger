@@ -204,6 +204,13 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
         self.conntrack.killall(proto=conntrack.IPPROTO_UDP, src=self.address[0])
         self.conntrack.killall(proto=conntrack.IPPROTO_UDP, dst=self.address[0])
 
+    def get_tunnel_manager(self):
+        """
+        Returns the tunnel manager for this broker.
+        """
+
+        return self.tunnel_manager
+
     def create_tunnel(self, address, uuid, remote_tunnel_id):
         """
         Called when a new tunnel should be created.
