@@ -194,7 +194,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         if self.pmtu_probe_size is not None and self.pmtu_probe_size <= self.pmtu_probe_acked_mtu:
             # No need to check lower PMTUs as we already received acknowledgement. Restart
             # PMTU discovery after sleeping for some time.
-            print "TUNNEL: PMTU probe finished", self.tunnel_id, self.pmtu_probe_acked_mtu
             self.pmtu_probe_iteration = 0
             self.pmtu_probe_size = None
             self.pmtu_probe_acked_mtu = 0
@@ -205,7 +204,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.pmtu_probe_iteration = (self.pmtu_probe_iteration + 1) % PMTU_PROBE_COMBINATIONS
 
         # Transmit the PMTU probe.
-        print "TUNNEL: Transmit PMTU probe", self.tunnel_id, self.pmtu_probe_size
         probe = '\x80\x73\xA7\x01\x06\x00'
         probe += '\x00' * (self.pmtu_probe_size - IPV4_HDR_OVERHEAD - len(probe))
         self.write(self.endpoint, probe)
