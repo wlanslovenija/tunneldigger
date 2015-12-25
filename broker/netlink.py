@@ -1,8 +1,7 @@
 #
-# NETLINK routines for gevent sockets. Adapted from
-# work by Johannes Berg <johannes@sipsolutions.net>.
+# NETLINK routines. Adapted from work by Johannes Berg <johannes@sipsolutions.net>.
 #
-import gevent.socket as gsocket
+import socket
 import os
 import struct
 
@@ -140,30 +139,30 @@ class Message:
 
 class Connection:
     def __init__(self, nltype, groups=0, unexpected_msg_handler=None):
-        self.descriptor = gsocket.socket(gsocket.AF_NETLINK, gsocket.SOCK_RAW, nltype)
-        self.descriptor.setsockopt(gsocket.SOL_SOCKET, gsocket.SO_SNDBUF, 65536)
-        self.descriptor.setsockopt(gsocket.SOL_SOCKET, gsocket.SO_RCVBUF, 65536)
+        self.descriptor = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, nltype)
+        self.descriptor.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 65536)
+        self.descriptor.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 65536)
         self.descriptor.bind((0, groups))
         self.pid, self.groups = self.descriptor.getsockname()
         self._seq = 0
         self.unexpected = unexpected_msg_handler
-    
+
     def send(self, msg):
         self.descriptor.send(msg)
-    
+
     def recv(self, multiple = False):
         messages = []
         done = False
-        
+
         while not done:
             contents, (nlpid, nlgrps) = self.descriptor.recvfrom(16384)
-            
+
             while len(contents):
                 msglen, msg_type, flags, seq, pid = struct.unpack("IHHII", contents[:16])
                 msg = Message(msg_type, flags, seq, contents[16:msglen])
                 msg.pid = pid
                 contents = contents[msglen:]
-                
+
                 if not multiple:
                     messages.append(msg)
                     done = True
@@ -180,12 +179,12 @@ class Connection:
                         raise err
                 else:
                     messages.append(msg)
-        
+
         if not multiple:
             return messages[0]
-        
+
         return messages
-    
+
     def seq(self):
         self._seq += 1
         return self._seq

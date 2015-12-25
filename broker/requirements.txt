@@ -1,6 +1,2 @@
-construct==2.5.2
-gevent==1.0.2
-greenlet==0.4.9
 netfilter==0.6.2
-repoze.lru==0.6
 six==1.9.0

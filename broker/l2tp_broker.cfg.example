@@ -5,23 +5,16 @@ address=127.0.0.1
 port=53,123,8942
 ; Interface with that IP address
 interface=lo
-; Maximum number of cached cookies, required for establishing a
-; session with the broker
-max_cookies=1024
 ; Maximum number of tunnels that will be allowed by the broker
 max_tunnels=1024
 ; Tunnel port base
 port_base=20000
 ; Tunnel id base
 tunnel_id_base=100
-; Tunnel timeout interval in seconds
-tunnel_timeout=60
-; Should PMTU discovery be enabled
-pmtu_discovery=true
 ; Namespace (for running multiple brokers); note that you must also
 ; configure disjunct ports, and tunnel identifiers in order for
 ; namespacing to work
-namespace=experiments
+namespace=default
 ; check if all kernel module are loaded. Do not check for built-ins.
 check_modules=true
 
