@@ -30,4 +30,3 @@ will do a test run using HEAD for the server and the client.
 ## Future
 
 * clean up environment if the test fails (stop containers + remove them)
-* use pynose for testing. Should also fix the missing clean up.
