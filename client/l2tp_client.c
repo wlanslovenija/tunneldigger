@@ -235,41 +235,41 @@ int is_timeout(time_t *timer, time_t period)
   return 0;
 }
 
-uint8_t parse_u8(unsigned char **buffer)
+uint8_t parse_u8(char **buffer)
 {
   uint8_t value = *((uint8_t*) *buffer);
   (*buffer) += sizeof(uint8_t);
   return value;
 }
 
-uint16_t parse_u16(unsigned char **buffer)
+uint16_t parse_u16(char **buffer)
 {
   uint16_t value = ntohs(*((uint16_t*) *buffer));
   (*buffer) += sizeof(uint16_t);
   return value;
 }
 
-uint32_t parse_u32(unsigned char **buffer)
+uint32_t parse_u32(char **buffer)
 {
   uint32_t value = ntohl(*((uint32_t*) *buffer));
   (*buffer) += sizeof(uint32_t);
   return value;
 }
 
-void put_u8(unsigned char **buffer, uint8_t value)
+void put_u8(char **buffer, uint8_t value)
 {
-  (*buffer)[0] = (unsigned char) value;
+  (*buffer)[0] = value;
   (*buffer) += sizeof(value);
 }
 
-void put_u16(unsigned char **buffer, uint16_t value)
+void put_u16(char **buffer, uint16_t value)
 {
   (*buffer)[0] = value >> 8;
   (*buffer)[1] = value;
   (*buffer) += sizeof(value);
 }
 
-void put_u32(unsigned char **buffer, uint32_t value)
+void put_u32(char **buffer, uint32_t value)
 {
   (*buffer)[0] = value >> 24;
   (*buffer)[1] = value >> 16;
@@ -438,7 +438,7 @@ void context_call_hook(l2tp_context *ctx, const char *hook)
 void context_limit_send_simple_request(l2tp_context *ctx, uint8_t type, uint32_t limit)
 {
   char buffer[16];
-  unsigned char *buf = (unsigned char*) &buffer;
+  char *buf = buffer;
 
   put_u8(&buf, type);
   // Simple request are always a single 4 byte integer
@@ -472,7 +472,7 @@ void context_process_control_packet(l2tp_context *ctx)
     return;
 
   // Decode packet header
-  unsigned char *buf = (unsigned char*) &buffer;
+  char *buf = buffer;
   if (parse_u8(&buf) != 0x80 || parse_u16(&buf) != 0x73A7)
     return;
 
@@ -551,7 +551,7 @@ void context_process_control_packet(l2tp_context *ctx)
       if (ctx->state == STATE_KEEPALIVE) {
         // Send back an acknowledgement packet with proper size
         char buffer[16];
-        unsigned char *buf = (unsigned char*) &buffer;
+        char *buf = buffer;
         put_u16(&buf, bytes);
         context_send_packet(ctx, CONTROL_TYPE_PMTUD_ACK, (char*) &buffer, 2);
       }
@@ -613,7 +613,7 @@ void context_process_control_packet(l2tp_context *ctx)
   }
 }
 
-void context_prepare_packet(l2tp_context *ctx, unsigned char *buf, uint8_t type, char *payload, uint8_t len)
+void context_prepare_packet(l2tp_context *ctx, char *buf, uint8_t type, char *payload, uint8_t len)
 {
   put_u8(&buf, 0x80);
   put_u16(&buf, 0x73A7);
@@ -628,7 +628,7 @@ void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload
 {
   char *packet = (char*) malloc(L2TP_CONTROL_SIZE + len + 2);
   char buffer[512];
-  unsigned char *buf = (unsigned char*) &buffer;
+  char *buf = buffer;
 
   put_u16(&buf, ctx->reliable_seqno);
   memcpy(buf, payload, len);
@@ -691,7 +691,7 @@ void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len)
 {
   char buffer[2048];
-  context_prepare_packet(ctx, (unsigned char*) &buffer, type, payload, len);
+  context_prepare_packet(ctx, &buffer[0], type, payload, len);
 
   // Pad the packet to 12 bytes to avoid it being filtered by some firewalls
   // when used over port 53
@@ -708,7 +708,7 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
   if (size > 1500 || size < L2TP_CONTROL_SIZE)
     return;
 
-  unsigned char *buf = (unsigned char*) &buffer;
+  char *buf = buffer;
   put_u8(&buf, 0x80);
   put_u16(&buf, 0x73A7);
   put_u8(&buf, 1);
@@ -747,7 +747,7 @@ void context_pmtu_start_discovery(l2tp_context *ctx)
 void context_send_setup_request(l2tp_context *ctx)
 {
   char buffer[512];
-  unsigned char *buf = (unsigned char*) &buffer;
+  char *buf = buffer;
 
   // First 8 bytes of payload is the cookie value
   memcpy(buf, ctx->cookie, 8);
@@ -889,7 +889,7 @@ void context_close_tunnel(l2tp_context *ctx, uint8_t reason)
   reason |= ERROR_DIRECTION_CLIENT;
 
   // Notify the broker that the tunnel has been closed
-  context_send_packet(ctx, CONTROL_TYPE_ERROR, &reason, 1);
+  context_send_packet(ctx, CONTROL_TYPE_ERROR, (char *) &reason, 1);
 
   // Call down hook, delete the tunnel and set state to reinit
   context_call_hook(ctx, "session.down");
@@ -982,7 +982,7 @@ void context_process(l2tp_context *ctx)
        */
       if (is_timeout(&ctx->timer_keepalive, 5)) {
         char buffer[4];
-        unsigned char *buf = (unsigned char*) &buffer;
+        char *buf = buffer;
         put_u32(&buf, ctx->keepalive_seqno);
         context_send_packet(ctx, CONTROL_TYPE_KEEPALIVE, buffer, 4);
         ctx->keepalive_seqno++;
@@ -1008,7 +1008,7 @@ void context_process(l2tp_context *ctx)
 
         // Notify the broker of the configured MTU
         char buffer[16];
-        unsigned char *buf = (unsigned char*) &buffer;
+        char *buf = buffer;
         put_u16(&buf, ctx->pmtu - L2TP_TUN_OVERHEAD);
         context_send_packet(ctx, CONTROL_TYPE_PMTU_NTFY, (char*) &buffer, 2);
 
@@ -1222,7 +1222,6 @@ int main(int argc, char **argv)
     // Attempt to initialize the L2TP context. This might fail because the network is still
     // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
     // and then abort.
-    int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
         tunnel_iface, force_iface_opt, hook, tunnel_id, limit_bandwidth_down);
