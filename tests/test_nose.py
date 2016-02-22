@@ -3,7 +3,10 @@
 import logging
 import lxc
 import os
+import signal
+from time import sleep
 import tunneldigger
+from threading import Timer, Thread
 
 # random hash
 CONTEXT = None
@@ -17,6 +20,28 @@ SERVER_PID = None
 CLIENT_PID = None
 
 LOG = logging.getLogger("test_nose")
+
+def run_as_lxc(container, command, timeout=10):
+    """
+    run command within container and returns output
+
+    command is a list of command and arguments,
+    The output is limited to the buffersize of pipe (64k on linux)
+    """
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    pid = container.attach(lxc.attach_run_command, command, stdout=write_fd, stderr=write_fd)
+    timer = Timer(timeout, os.kill, args=(pid, signal.SIGKILL), kwargs=None)
+    if timeout:
+        timer.start()
+    output_list = []
+    os.waitpid(pid, 0)
+    timer.cancel()
+    try:
+        while True:
+            output_list.append(os.read(read_fd, 1024))
+    except BlockingIOError:
+        pass
+    return bytes().join(output_list)
 
 def setup_module():
     global CONTEXT, SERVER, CLIENT, SERVER_PID, CLIENT_PID
@@ -47,9 +72,10 @@ class TestTunneldigger(object):
 
     def test_ensure_tunnel_up_for_5m(self):
         # get id of l2tp0 iface
-        ## ip -o l | awk -F: '{ print $1 }'
+        first_interface_id = run_as_lxc(CLIENT, ['bash', '-c', 'ip -o link show l2tp0 | awk -F: \'{ print $1 }\''])
         # sleep 5 minutes
+        sleep(5 * 60)
         # get id of l2tp0 iface
-        ## ip -o l | awk -F: '{ print $1 }'
-        # assert early_id == later_id
-        pass
+        second_interface_id = run_as_lxc(CLIENT, ['bash', '-c', 'ip -o link show l2tp0 | awk -F: \'{ print $1 }\''])
+        LOG.info("Check l2tp is stable for 5m. first id %s == %s second id " % (first_interface_id, second_interface_id))
+        assert first_interface_id == second_interface_id
