@@ -1222,7 +1222,6 @@ int main(int argc, char **argv)
     // Attempt to initialize the L2TP context. This might fail because the network is still
     // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
     // and then abort.
-    int tries = 0;
     for (;;) {
       brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
         tunnel_iface, force_iface_opt, hook, tunnel_id, limit_bandwidth_down);
