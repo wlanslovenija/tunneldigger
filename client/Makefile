@@ -1,3 +1,6 @@
+
+CFLAGS += -Wall -Werror
+
 all: l2tp_client
 
 l2tp_client: l2tp_client.o asyncns.o
