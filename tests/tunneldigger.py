@@ -137,7 +137,7 @@ def testing(client_rev, server_rev):
     print("generate a run for %s" % context)
     client, server = prepare_containers(context, client_rev, server_rev)
     spid = run_server(server)
-    cpid = run_client(client)
+    cpid = run_client(client, ['172.16.16.1:8942'])
 
     # wait until client is connected to server
     if not check_ping(client, '192.168.254.1', 20):
@@ -212,11 +212,15 @@ def run_server(server):
     spid = server.attach(lxc.attach_run_command, ['/testing/run_server.sh'])
     return spid
 
-def run_client(client):
+def run_client(client, servers=[]):
     """ run_client(client)
     client is a container
+    servers is a list of all available servers
     """
-    cpid = client.attach(lxc.attach_run_command, ['/testing/run_client.sh'])
+
+    arguments = ['/testing/run_client.sh']
+    arguments.extend(servers)
+    cpid = client.attach(lxc.attach_run_command, arguments)
     return cpid
 
 def run_tests(server, client):
