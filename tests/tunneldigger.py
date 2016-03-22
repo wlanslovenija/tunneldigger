@@ -293,6 +293,20 @@ def run_as_lxc(container, command, timeout=10):
         pass
     return bytes().join(output_list)
 
+def check_if_git_contains(container, repo_path, top_commit, search_for_commit):
+    """ checks if a git commit is included within a certain tree
+    look into repo under *repo_path*, check if search_for_commit is included in the top_commit
+    """
+    cmd = ['sh', '-c', 'cd %s ; git merge-base "%s" "%s"' % (repo_path, top_commit, search_for_commit)]
+    base = run_as_lxc(container, cmd)
+    sys.stderr.write("\nGIT call is %s\n" % cmd)
+    sys.stderr.write("\nGIT returns is %s\n" % base)
+    if base.startswith(bytes(search_for_commit, 'utf-8')):
+        # the base must be the search_for_commit when search_for_commit should included into top_commit
+        # TODO: replace with git merge-base --is-ancestor
+        return True
+    return False
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Test Tunneldigger version against each other")
     # operation on the hosts
