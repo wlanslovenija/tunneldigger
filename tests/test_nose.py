@@ -6,7 +6,7 @@ import os
 import signal
 from time import sleep
 import tunneldigger
-from threading import Timer, Thread
+from tunneldigger import run_as_lxc
 
 # random hash
 CONTEXT = None
@@ -20,28 +20,6 @@ SERVER_PID = None
 CLIENT_PID = None
 
 LOG = logging.getLogger("test_nose")
-
-def run_as_lxc(container, command, timeout=10):
-    """
-    run command within container and returns output
-
-    command is a list of command and arguments,
-    The output is limited to the buffersize of pipe (64k on linux)
-    """
-    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
-    pid = container.attach(lxc.attach_run_command, command, stdout=write_fd, stderr=write_fd)
-    timer = Timer(timeout, os.kill, args=(pid, signal.SIGKILL), kwargs=None)
-    if timeout:
-        timer.start()
-    output_list = []
-    os.waitpid(pid, 0)
-    timer.cancel()
-    try:
-        while True:
-            output_list.append(os.read(read_fd, 1024))
-    except BlockingIOError:
-        pass
-    return bytes().join(output_list)
 
 def setup_module():
     global CONTEXT, SERVER, CLIENT, SERVER_PID, CLIENT_PID

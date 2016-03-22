@@ -8,7 +8,9 @@ import argparse
 import logging
 import os
 import shlex
+import signal
 import sys
+from threading import Timer
 
 GIT_URL = "https://github.com/wlanslovenija/tunneldigger"
 
@@ -268,6 +270,28 @@ def check_host():
         print("Everything is installed")
         return True
     raise RuntimeError("Missing dependencies. See stderr for more info")
+
+def run_as_lxc(container, command, timeout=10):
+    """
+    run command within container and returns output
+
+    command is a list of command and arguments,
+    The output is limited to the buffersize of pipe (64k on linux)
+    """
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    pid = container.attach(lxc.attach_run_command, command, stdout=write_fd, stderr=write_fd)
+    timer = Timer(timeout, os.kill, args=(pid, signal.SIGKILL), kwargs=None)
+    if timeout:
+        timer.start()
+    output_list = []
+    os.waitpid(pid, 0)
+    timer.cancel()
+    try:
+        while True:
+            output_list.append(os.read(read_fd, 1024))
+    except BlockingIOError:
+        pass
+    return bytes().join(output_list)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Test Tunneldigger version against each other")
