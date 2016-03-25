@@ -44,7 +44,8 @@ class TestTunneldigger(object):
             raise RuntimeError("fail to ping server")
 
     def test_wget_tunneldigger_server(self):
-        ret = CLIENT.attach_wait(lxc.attach_run_command, ["wget", "-t", "2", "-T", "4", "http://192.168.254.1:8080/test_8m", '-O', '/dev/null'])
+        ret = CLIENT.attach_wait(lxc.attach_run_command, [
+            "wget", "-t", "2", "-T", "4", "http://192.168.254.1:8080/testing/test-data/test_8m", '-O', '/dev/null'])
         if ret != 0:
             raise RuntimeError("failed to run the tests")
 

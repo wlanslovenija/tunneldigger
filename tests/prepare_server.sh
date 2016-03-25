@@ -20,7 +20,7 @@ server.modules = (
         "mod_access",
 	)
 
-server.document-root        = "/testing/test-data"
+server.document-root        = "/"
 server.errorlog             = "/var/log/lighttpd/error.log"
 server.pid-file             = "/var/run/lighttpd.pid"
 server.username             = "www-data"
