@@ -150,6 +150,46 @@ def testing(client_rev, server_rev):
         raise RuntimeError('Tunneldigger client can not connect to the server')
     run_tests(server, client)
 
+def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
+    if cont_type not in ['server', 'client']:
+        raise RuntimeError('Unknown container type given')
+    if lxc.Container(name).defined:
+        raise RuntimeError('Container "%s" already exist!' % name)
+
+    base = lxc.Container("tunneldigger-base")
+
+    if not base.defined:
+        raise RuntimeError("Setup first the base container")
+
+    base = lxc.Container("tunneldigger-base")
+    if base.running:
+        raise RuntimeError(
+            "base container %s is still running."
+            "Please run lxc-stop --name %s -t 5" %
+            (base.name, base.name))
+
+    LOG.info("Cloning base (%s) to server (%s)", base.name, name)
+    cont = base.clone(name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
+    if not cont:
+        raise RuntimeError('could not create container "%s"' % name)
+    configure_network(cont, bridge, ip_netmask)
+
+    configure_mounts(cont)
+    if not cont.start():
+        raise RuntimeError("Can not start container %s" % cont.name)
+    sleep(3)
+    if not check_ping(cont, '8.8.8.8', 20):
+        raise RuntimeError("Container doesn't have an internet connection %s"
+                % cont.name)
+
+    script = '/testing/prepare_%s.sh' % cont_type
+    LOG.info("Server %s run %s", name, script)
+    ret = cont.attach_wait(lxc.attach_run_command, [script, revision])
+    if ret != 0:
+        raise RuntimeError('Failed to prepare the container "%s" type %s' % (name, cont_type))
+    LOG.info("Finished prepare_server %s", name)
+    return cont
+
 def prepare_containers(context, client_rev, server_rev):
     """ this does the real test.
     - cloning containers from tunneldigger-base
@@ -158,61 +198,17 @@ def prepare_containers(context, client_rev, server_rev):
     - execute "compiler" steps
     - return clientcontainer, servercontainer
     """
-    base = lxc.Container("tunneldigger-base")
-    if not base.defined:
-        raise RuntimeError("Setup first the base container")
 
     generate_test_file()
 
     server_name = "%s_server" % context
     client_name = "%s_client" % context
     bridge_name = "br-%s" % context
-    server = lxc.Container(server_name)
-    client = lxc.Container(client_name)
-
-    if base.running:
-        raise RuntimeError("base container %s is still running. Please run lxc-stop --name %s -t 5" % (base.name, base.name))
-
-    if server.defined or client.defined:
-        raise RuntimeError("server or client container already exist")
 
     create_bridge(bridge_name)
+    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24')
+    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24')
 
-    LOG.info("ctx %s cloning containers", context)
-    server = base.clone(server_name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
-    client = base.clone(client_name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
-
-    if not server:
-        if client:
-            client.destroy()
-        raise RuntimeError("could not create server container %s" % server_name)
-    if not client:
-        if server:
-            server.destroy()
-        raise RuntimeError("could not create client container %s" % client_name)
-
-    configure_network(server, bridge_name, True)
-    configure_network(client, bridge_name, False)
-
-    for cont in [client, server]:
-        configure_mounts(cont)
-        if not cont.start():
-          raise RuntimeError("Can not start container %s" % cont.name)
-        sleep(3)
-        if not check_ping(cont, '8.8.8.8', 20):
-            raise RuntimeError("Container doesn't have an internet connection %s" % cont.name)
-
-    LOG.info("ctx %s prepare server", context)
-    ret = server.attach_wait(lxc.attach_run_command, ['/testing/prepare_server.sh', server_rev])
-    if ret != 0:
-        raise RuntimeError("Failed to prepare the server")
-    LOG.info("ctx %s finished prepare server", context)
-
-    LOG.info("ctx %s prepare client", context)
-    ret = client.attach_wait(lxc.attach_run_command, ['/testing/prepare_client.sh', client_rev])
-    if ret != 0:
-        raise RuntimeError("Failed to prepare the server")
-    LOG.info("ctx %s finished prepare client", context)
     return client, server
 
 def run_server(server):
