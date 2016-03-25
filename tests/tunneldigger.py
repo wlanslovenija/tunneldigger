@@ -70,23 +70,17 @@ def get_random_context():
     context = hex(context)[2:]
     return context
 
-def configure_network(container, bridge, is_server):
-    """ configure the container and connect them to the bridge 
+def configure_network(container, bridge, ip_netmask):
+    """ configure the container and connect them to the bridge
     container is a lxc container
-    context is the hex for the bridge """
+    bridge the name of your bridge to attach the container
+    ip_netmask is the give address in cidr. e.g. 192.168.1.2/24"""
     config = [
         ('lxc.network.type', 'veth'),
         ('lxc.network.link', bridge),
         ('lxc.network.flags', 'up'),
+        ('lxc.network.ipv4', ip_netmask),
         ]
-    if is_server:
-        config.append(
-            ('lxc.network.ipv4', '172.16.16.1/24'),
-            )
-    else:
-        config.append(
-            ('lxc.network.ipv4', '172.16.16.2/24'),
-            )
 
     for item in config:
         container.append_config_item(item[0], item[1])
