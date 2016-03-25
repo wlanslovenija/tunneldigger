@@ -47,6 +47,9 @@ cp /srv/tunneldigger/broker/l2tp_broker.cfg.example /srv/tunneldigger/broker/l2t
 sed -i "s/127.0.0.1/$IP/g" /srv/tunneldigger/broker/l2tp_broker.cfg
 sed -i "s/^interface=.*/interface=eth1/g" /srv/tunneldigger/broker/l2tp_broker.cfg
 
+# save the ip into a file where the http server can access it
+echo -n "$IP" > /ip.txt
+
 # WARNING hookpath must be without a leading slash!!!
 HOOKPATH=/testing/hook_server
 sed -i "s!^session.up=.*!session.up=$HOOKPATH/setup_interface.sh!g" /srv/tunneldigger/broker/l2tp_broker.cfg
