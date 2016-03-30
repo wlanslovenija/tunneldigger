@@ -36,3 +36,7 @@ for rev in $OLD_REV ; do
   export SERVER_REV=$NEW_REV
   nosetests
 done
+
+for i in seq 1 5; do
+  nosetests test_usage.py
+done
