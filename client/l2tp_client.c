@@ -766,7 +766,7 @@ void context_send_setup_request(l2tp_context *ctx)
   put_u16(&buf, ctx->tunnel_id);
 
   // Now send the packet
-  context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
+  context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, (buf - &buffer[0]));
 }
 
 void context_delete_tunnel(l2tp_context *ctx)
