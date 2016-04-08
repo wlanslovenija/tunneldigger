@@ -47,12 +47,17 @@ class EventLoop(object):
         """
 
         while True:
-            for fd, event in self.poller.poll():
-                mapping = self.pollables.get(fd, None)
-                if not mapping:
-                    continue
+            try:
+                for fd, event in self.poller.poll():
+                    mapping = self.pollables.get(fd, None)
+                    if not mapping:
+                        continue
 
-                pollable, file_object = mapping
+                    pollable, file_object = mapping
 
-                if event & select.EPOLLIN:
-                    pollable.read(file_object)
+                    if event & select.EPOLLIN:
+                        pollable.read(file_object)
+            except IOError:
+                # IOError get produced by signal even. in version 3.5 this is fixed an the poll retries
+                # TODO: in py3 it's InterruptedError
+                pass
