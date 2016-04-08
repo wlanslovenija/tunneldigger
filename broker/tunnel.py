@@ -73,6 +73,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.tunnel_id = tunnel_id
         self.remote_tunnel_id = remote_tunnel_id
         self.last_alive = time.time()
+        self.created_time = None
         self.keepalive_seqno = 0
 
         # Initialize PMTU values.
@@ -167,6 +168,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             )
         except conntrack.ConntrackError:
             pass
+
+        self.created_time = time.time()
 
         # Respond with tunnel establishment message.
         self.write_message(self.endpoint, protocol.CONTROL_TYPE_TUNNEL, struct.pack('!I', self.tunnel_id))
@@ -274,7 +277,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param reason: Reason code for the tunnel being closed
         """
 
-        logger.info("Closing tunnel %d." % self.tunnel_id)
+        logger.info("Closing tunnel %d after %d seconds", self.tunnel_id, time.time() - self.created_time)
 
         # Run pre-down hook.
         self.broker.hook_manager.run_hook(

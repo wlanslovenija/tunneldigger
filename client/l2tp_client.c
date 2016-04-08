@@ -137,7 +137,7 @@ typedef struct {
   // Tunnel interface name
   char *tunnel_iface;
   // Local tunnel identifer
-  int tunnel_id;
+  unsigned int tunnel_id;
   // External hook script
   char *hook;
   // Local IP endpoint
@@ -763,10 +763,10 @@ void context_send_setup_request(l2tp_context *ctx)
   buf += uuid_len;
 
   // And the local tunnel identifier at the end
-  put_u16(&buf, ctx->tunnel_id);
+  put_u32(&buf, ctx->tunnel_id);
 
   // Now send the packet
-  context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, uuid_len + 9);
+  context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, (buf - &buffer[0]));
 }
 
 void context_delete_tunnel(l2tp_context *ctx)
@@ -1146,7 +1146,7 @@ int main(int argc, char **argv)
   int log_option = 0;
   char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *force_iface_opt = NULL;
   char *hook = NULL;
-  int tunnel_id = 1;
+  unsigned int tunnel_id = 1;
   int limit_bandwidth_down = 0;
 
   // List of brokers
@@ -1190,7 +1190,7 @@ int main(int argc, char **argv)
       }
       case 'i': tunnel_iface = strdup(optarg); break;
       case 's': hook = strdup(optarg); break;
-      case 't': tunnel_id = atoi(optarg); break;
+      case 't': tunnel_id = strtoul(optarg, NULL, 0); break;
       case 'L': limit_bandwidth_down = atoi(optarg); break;
       case 'I': force_iface_opt = strdup(optarg); break;
       default: {

@@ -115,10 +115,10 @@ class HandshakeProtocolMixin(object):
             if signature != msg_data[2:8] or abs(protocol_time() - timestamp) > 2:
                 return
 
-            uuid_len = struct.unpack('!B', msg_data[9])[0]
-            uuid = msg_data[10:10 + uuid_len]
+            uuid_len = struct.unpack('!B', msg_data[8])[0]
+            uuid = msg_data[9:9 + uuid_len]
             try:
-                remote_tunnel_id = struct.unpack('!H', msg_data[10 + uuid_len:10 + uuid_len + 2])[0]
+                remote_tunnel_id = struct.unpack('!I', msg_data[10 + uuid_len:10 + uuid_len + 4])[0]
             except struct.error:
                 remote_tunnel_id = 1
 
