@@ -1,0 +1,44 @@
+#!/bin/sh -e
+### BEGIN INIT INFO
+# Provides:          tunneldigger
+# Required-Start:    $network $remote_fs $syslog
+# Required-Stop:     $network $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: L2TPv3 client
+# Description:       A simple VPN client based on L2TPv3 kernel driver.
+### END INIT INFO
+
+DAEMON=/usr/sbin/tunneldigger
+NAME=tunneldigger
+PIDFILE=/var/run/$NAME.pid
+ID=0
+
+test -x $DAEMON || exit 0
+
+# Include tunneldigger settings
+[ -f /etc/$NAME.conf ] && . /etc/$NAME.conf
+
+set -e
+
+case "$1" in
+  start)
+
+    [ -n "$UUID" ] && [ -n "$IFACE" ] && [ -n "$SERVER" ] || exit 1
+    modprobe l2tp_eth || exit 1
+
+    start-stop-daemon --start --quiet --background --make-pidfile --pidfile $PIDFILE --exec $DAEMON -- \
+      -u $UUID \
+      -i $IFACE \
+      ${EXTIF+-I $EXTIF} \
+      ${LIMIT+-L $LIMIT} \
+      -t $ID \
+      -b $SERVER
+    ;;
+
+  stop)
+
+    start-stop-daemon --stop --quiet --retry=TERM/30/KILL/5 --pidfile $PIDFILE --name $NAME
+    ;;
+
+esac
