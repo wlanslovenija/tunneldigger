@@ -1,5 +1,5 @@
 #!/bin/sh
-# Alexander Couzens <lynxis@fe80.eu>
+# 2015-2016 Alexander Couzens <lynxis@fe80.eu>
 #
 # jenkins script
 
@@ -22,7 +22,8 @@ export CLIENT_REV=$NEW_REV
 export SERVER_REV=$NEW_REV
 nosetests
 
-OLD_REV="c638231efca6b3a6e1c675ac0834a3e851ad1bdc 263eb59098fd11990b6ab75933fb7633055cbc9a 4e4f13cdc630c46909d47441093a5bdaffa0d67f"
+
+OLD_REV="c638231efca6b3a6e1c675ac0834a3e851ad1bdc 4e4f13cdc630c46909d47441093a5bdaffa0d67f"
 # do client NEW_REV against old revs
 for rev in $OLD_REV ; do
   export CLIENT_REV=$NEW_REV
@@ -35,4 +36,8 @@ for rev in $OLD_REV ; do
   export CLIENT_REV=$rev
   export SERVER_REV=$NEW_REV
   nosetests
+done
+
+for i in seq 1 5; do
+  nosetests test_usage.py
 done

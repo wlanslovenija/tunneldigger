@@ -8,7 +8,9 @@ import argparse
 import logging
 import os
 import shlex
+import signal
 import sys
+from threading import Timer
 
 GIT_URL = "https://github.com/wlanslovenija/tunneldigger"
 
@@ -68,23 +70,17 @@ def get_random_context():
     context = hex(context)[2:]
     return context
 
-def configure_network(container, bridge, is_server):
-    """ configure the container and connect them to the bridge 
+def configure_network(container, bridge, ip_netmask):
+    """ configure the container and connect them to the bridge
     container is a lxc container
-    context is the hex for the bridge """
+    bridge the name of your bridge to attach the container
+    ip_netmask is the give address in cidr. e.g. 192.168.1.2/24"""
     config = [
         ('lxc.network.type', 'veth'),
         ('lxc.network.link', bridge),
         ('lxc.network.flags', 'up'),
+        ('lxc.network.ipv4', ip_netmask),
         ]
-    if is_server:
-        config.append(
-            ('lxc.network.ipv4', '172.16.16.1/24'),
-            )
-    else:
-        config.append(
-            ('lxc.network.ipv4', '172.16.16.2/24'),
-            )
 
     for item in config:
         container.append_config_item(item[0], item[1])
@@ -141,12 +137,52 @@ def testing(client_rev, server_rev):
     print("generate a run for %s" % context)
     client, server = prepare_containers(context, client_rev, server_rev)
     spid = run_server(server)
-    cpid = run_client(client)
+    cpid = run_client(client, ['172.16.16.1:8942'])
 
     # wait until client is connected to server
     if not check_ping(client, '192.168.254.1', 20):
         raise RuntimeError('Tunneldigger client can not connect to the server')
     run_tests(server, client)
+
+def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
+    if cont_type not in ['server', 'client']:
+        raise RuntimeError('Unknown container type given')
+    if lxc.Container(name).defined:
+        raise RuntimeError('Container "%s" already exist!' % name)
+
+    base = lxc.Container("tunneldigger-base")
+
+    if not base.defined:
+        raise RuntimeError("Setup first the base container")
+
+    base = lxc.Container("tunneldigger-base")
+    if base.running:
+        raise RuntimeError(
+            "base container %s is still running."
+            "Please run lxc-stop --name %s -t 5" %
+            (base.name, base.name))
+
+    LOG.info("Cloning base (%s) to server (%s)", base.name, name)
+    cont = base.clone(name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
+    if not cont:
+        raise RuntimeError('could not create container "%s"' % name)
+    configure_network(cont, bridge, ip_netmask)
+
+    configure_mounts(cont)
+    if not cont.start():
+        raise RuntimeError("Can not start container %s" % cont.name)
+    sleep(3)
+    if not check_ping(cont, '8.8.8.8', 20):
+        raise RuntimeError("Container doesn't have an internet connection %s"
+                % cont.name)
+
+    script = '/testing/prepare_%s.sh' % cont_type
+    LOG.info("Server %s run %s", name, script)
+    ret = cont.attach_wait(lxc.attach_run_command, [script, revision])
+    if ret != 0:
+        raise RuntimeError('Failed to prepare the container "%s" type %s' % (name, cont_type))
+    LOG.info("Finished prepare_server %s", name)
+    return cont
 
 def prepare_containers(context, client_rev, server_rev):
     """ this does the real test.
@@ -156,61 +192,17 @@ def prepare_containers(context, client_rev, server_rev):
     - execute "compiler" steps
     - return clientcontainer, servercontainer
     """
-    base = lxc.Container("tunneldigger-base")
-    if not base.defined:
-        raise RuntimeError("Setup first the base container")
 
     generate_test_file()
 
     server_name = "%s_server" % context
     client_name = "%s_client" % context
     bridge_name = "br-%s" % context
-    server = lxc.Container(server_name)
-    client = lxc.Container(client_name)
-
-    if base.running:
-        raise RuntimeError("base container %s is still running. Please run lxc-stop --name %s -t 5" % (base.name, base.name))
-
-    if server.defined or client.defined:
-        raise RuntimeError("server or client container already exist")
 
     create_bridge(bridge_name)
+    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24')
+    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24')
 
-    LOG.info("ctx %s cloning containers", context)
-    server = base.clone(server_name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
-    client = base.clone(client_name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
-
-    if not server:
-        if client:
-            client.destroy()
-        raise RuntimeError("could not create server container %s" % server_name)
-    if not client:
-        if server:
-            server.destroy()
-        raise RuntimeError("could not create client container %s" % client_name)
-
-    configure_network(server, bridge_name, True)
-    configure_network(client, bridge_name, False)
-
-    for cont in [client, server]:
-        configure_mounts(cont)
-        if not cont.start():
-          raise RuntimeError("Can not start container %s" % cont.name)
-        sleep(3)
-        if not check_ping(cont, '8.8.8.8', 20):
-            raise RuntimeError("Container doesn't have an internet connection %s" % cont.name)
-
-    LOG.info("ctx %s prepare server", context)
-    ret = server.attach_wait(lxc.attach_run_command, ['/testing/prepare_server.sh', server_rev])
-    if ret != 0:
-        raise RuntimeError("Failed to prepare the server")
-    LOG.info("ctx %s finished prepare server", context)
-
-    LOG.info("ctx %s prepare client", context)
-    ret = client.attach_wait(lxc.attach_run_command, ['/testing/prepare_client.sh', client_rev])
-    if ret != 0:
-        raise RuntimeError("Failed to prepare the server")
-    LOG.info("ctx %s finished prepare client", context)
     return client, server
 
 def run_server(server):
@@ -220,16 +212,21 @@ def run_server(server):
     spid = server.attach(lxc.attach_run_command, ['/testing/run_server.sh'])
     return spid
 
-def run_client(client):
+def run_client(client, servers=[]):
     """ run_client(client)
     client is a container
+    servers is a list of all available servers
     """
-    cpid = client.attach(lxc.attach_run_command, ['/testing/run_client.sh'])
+
+    arguments = ['/testing/run_client.sh']
+    arguments.extend(servers)
+    cpid = client.attach(lxc.attach_run_command, arguments)
     return cpid
 
 def run_tests(server, client):
     """ the client should be already connect to the server """
-    ret = client.attach_wait(lxc.attach_run_command, ["wget", "-t", "2", "-T", "4", "http://192.168.254.1:8080/test_8m", '-O', '/dev/null'])
+    ret = client.attach_wait(lxc.attach_run_command, [
+        "wget", "-t", "2", "-T", "4", "http://192.168.254.1:8080/testing/test-data/test_8m", '-O', '/dev/null'])
     if ret != 0:
         raise RuntimeError("failed to run the tests")
 
@@ -268,6 +265,42 @@ def check_host():
         print("Everything is installed")
         return True
     raise RuntimeError("Missing dependencies. See stderr for more info")
+
+def run_as_lxc(container, command, timeout=10):
+    """
+    run command within container and returns output
+
+    command is a list of command and arguments,
+    The output is limited to the buffersize of pipe (64k on linux)
+    """
+    read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+    pid = container.attach(lxc.attach_run_command, command, stdout=write_fd, stderr=write_fd)
+    timer = Timer(timeout, os.kill, args=(pid, signal.SIGKILL), kwargs=None)
+    if timeout:
+        timer.start()
+    output_list = []
+    os.waitpid(pid, 0)
+    timer.cancel()
+    try:
+        while True:
+            output_list.append(os.read(read_fd, 1024))
+    except BlockingIOError:
+        pass
+    return bytes().join(output_list)
+
+def check_if_git_contains(container, repo_path, top_commit, search_for_commit):
+    """ checks if a git commit is included within a certain tree
+    look into repo under *repo_path*, check if search_for_commit is included in the top_commit
+    """
+    cmd = ['sh', '-c', 'cd %s ; git merge-base "%s" "%s"' % (repo_path, top_commit, search_for_commit)]
+    base = run_as_lxc(container, cmd)
+    sys.stderr.write("\nGIT call is %s\n" % cmd)
+    sys.stderr.write("\nGIT returns is %s\n" % base)
+    if base.startswith(bytes(search_for_commit, 'utf-8')):
+        # the base must be the search_for_commit when search_for_commit should included into top_commit
+        # TODO: replace with git merge-base --is-ancestor
+        return True
+    return False
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Test Tunneldigger version against each other")
