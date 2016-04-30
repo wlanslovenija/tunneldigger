@@ -41,6 +41,6 @@ class TrafficControl(object):
         self.tc('class add dev %s parent 1: classid 1:1 htb rate %dkbit ceil %dkbit' % (
             self.interface, bandwidth, bandwidth
         ))
-        self.tc('tc qdisc add dev %s parent 1:1 fq_codel' % (
+        self.tc('qdisc add dev %s parent 1:1 fq_codel' % (
             self.interface
         ), True)
