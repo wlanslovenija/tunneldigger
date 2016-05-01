@@ -205,6 +205,14 @@ typedef struct {
   time_t timer_resolving;
 } l2tp_context;
 
+// List of brokers
+typedef struct {
+    char *address;
+    char *port;
+    l2tp_context *ctx;
+  } broker_cfg;
+#define MAX_BROKERS 10
+
 // Forward declarations
 void context_delete_tunnel(l2tp_context *ctx);
 void context_close_tunnel(l2tp_context *ctx, uint8_t reason);
@@ -214,6 +222,8 @@ void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
 void context_free(l2tp_context *ctx);
+void do_select_one(broker_cfg one_broker);
+void do_select(broker_cfg *brokers, int broker_cnt);
 
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
@@ -921,7 +931,14 @@ void context_close_tunnel(l2tp_context *ctx, uint8_t reason)
   ctx->state = STATE_REINIT;
 }
 
-void context_process(l2tp_context *ctx)
+void do_select_one(broker_cfg one_broker)
+{
+  broker_cfg broker[1];
+  broker[0] = one_broker;
+  do_select(broker, 1);
+}
+
+void do_select(broker_cfg *brokers, int broker_cnt)
 {
   // Poll the file descriptor to see if anything is to be read/written
   fd_set rfds;
@@ -934,18 +951,32 @@ void context_process(l2tp_context *ctx)
 
   // Add descriptor for DNS resolution
   int nsfd = asyncns_fd(asyncns_context);
-  int nfds = nsfd > ctx->fd ? nsfd : ctx->fd;
+  int nfds = nsfd;
   FD_SET(nsfd, &rfds);
+
+  int i;
+  for (i = 0; i < broker_cnt; i++) {
+    l2tp_context *ctx = brokers[i].ctx;
+    FD_SET(ctx->fd, &rfds);
+    nfds = nfds > ctx->fd ? nfds : ctx->fd;
+  }
 
   int res = select(nfds + 1, &rfds, NULL, NULL, &tv);
   if (res == -1) {
     return;
   } else if (res) {
-    if (FD_ISSET(ctx->fd, &rfds))
-      context_process_control_packet(ctx);
-    else if (FD_ISSET(nsfd, &rfds))
+    for (i = 0; i < broker_cnt; i++) {
+      l2tp_context *ctx = brokers[i].ctx;
+      if (FD_ISSET(ctx->fd, &rfds))
+        context_process_control_packet(ctx);
+    }
+    if (FD_ISSET(nsfd, &rfds))
       asyncns_wait(asyncns_context, 0);
   }
+}
+
+void context_process(l2tp_context *ctx)
+{
 
   // Transmit packets if needed
   switch (ctx->state) {
@@ -1127,14 +1158,6 @@ void context_free(l2tp_context *ctx)
   free(ctx);
 }
 
-// List of brokers
-typedef struct {
-  char *address;
-  char *port;
-  l2tp_context *ctx;
-} broker_cfg;
-#define MAX_BROKERS 10
-
 int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
 {
    // Select the r'th available broker and use it to establish a tunnel
@@ -1145,6 +1168,10 @@ int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
          (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
        best = i;
      }
+   }
+
+   if (brokers[best].ctx->standby_available == 0) {
+     return broker_selector_first_available(brokers, broker_cnt, ready_cnt);
    }
 
    brokers[best].ctx->standby_only = 0;
@@ -1346,6 +1373,7 @@ int main(int argc, char **argv)
     int ready_cnt = 0;
     for (;;) {
       ready_cnt = 0;
+      do_select(brokers, broker_cnt);
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
       }
@@ -1378,6 +1406,7 @@ int main(int argc, char **argv)
     int restart_timer = 0;
     time_t timer_establish = timer_now();
     for (;;) {
+      do_select_one(brokers[i]);
       context_process(main_context);
 
       if (main_context->state == STATE_REINIT) {
