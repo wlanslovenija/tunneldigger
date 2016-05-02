@@ -745,7 +745,7 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
         break;
       }
       default: {
-        syslog(LOG_WARNING, "Failed to send() PMTU probe packet of size %lu (errno=%d)!", size, errno);
+        syslog(LOG_WARNING, "Failed to send() PMTU probe packet of size %zu (errno=%d)!", size, errno);
         break;
       }
     }
