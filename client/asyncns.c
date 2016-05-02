@@ -18,15 +18,6 @@
   <http://www.gnu.org/licenses/>.
 ***/
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#define HAVE_STRNDUP 1
-#define HAVE_PTHREAD 1
-#define HAVE_SYS_PRCTL_H 1
-#define HAVE_SETRESUID 1
-
 #include <assert.h>
 #include <fcntl.h>
 #include <signal.h>
