@@ -182,27 +182,6 @@ typedef union packet {
     res_response_t res_response;
 } packet_t;
 
-#ifndef HAVE_STRNDUP
-
-static char *strndup(const char *s, size_t l) {
-    size_t a;
-    char *n;
-
-    a = strlen(s);
-    if (a > l)
-        a = l;
-
-    if (!(n = malloc(a+1)))
-        return NULL;
-
-    memcpy(n, s, a);
-    n[a] = 0;
-
-    return n;
-}
-
-#endif
-
 #ifndef HAVE_PTHREAD
 
 static int close_allv(const int except_fds[]) {
