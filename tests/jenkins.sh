@@ -9,6 +9,11 @@ nosetests() {
 
 set -e
 
+# compile test the l2tp client
+echo "Try to compile the l2tp client"
+cd $WORKSPACE/client/
+make
+
 # prepare lxc container template
 $WORKSPACE/tests/tunneldigger.py --setup
 
