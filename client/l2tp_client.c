@@ -205,6 +205,15 @@ typedef struct {
   time_t timer_resolving;
 } l2tp_context;
 
+// List of brokers
+typedef struct {
+  char *address;
+  char *port;
+  l2tp_context *ctx;
+} broker_cfg;
+
+#define MAX_BROKERS 10
+
 // Forward declarations
 void context_delete_tunnel(l2tp_context *ctx);
 void context_close_tunnel(l2tp_context *ctx, uint8_t reason);
@@ -217,6 +226,52 @@ void context_free(l2tp_context *ctx);
 
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
+
+int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+   // Select the r'th available broker and use it to establish a tunnel
+   int i = -1;
+   int best = 0;
+   for (i = 0; i < broker_cnt; i++) {
+     if (brokers[i].ctx->standby_available &&
+         (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
+       best = i;
+     }
+   }
+
+   brokers[best].ctx->standby_only = 0;
+   brokers[best].ctx->state = STATE_GET_COOKIE;
+   return best;
+}
+
+int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the first available broker and use it to establish a tunnel
+  int i;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available) {
+      brokers[i].ctx->standby_only = 0;
+      brokers[i].ctx->state = STATE_GET_COOKIE;
+      return i;
+    }
+  }
+  return -1;
+}
+
+int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the r'th available broker and use it to establish a tunnel
+  int i;
+  int r = rand() % ready_cnt;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available && (r-- == 0)) {
+      brokers[i].ctx->standby_only = 0;
+      brokers[i].ctx->state = STATE_GET_COOKIE;
+      return i;
+    }
+  }
+  return -1;
+}
 
 time_t timer_now()
 {
@@ -1127,59 +1182,7 @@ void context_free(l2tp_context *ctx)
   free(ctx);
 }
 
-// List of brokers
-typedef struct {
-  char *address;
-  char *port;
-  l2tp_context *ctx;
-} broker_cfg;
-#define MAX_BROKERS 10
 
-int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-   // Select the r'th available broker and use it to establish a tunnel
-   int i = -1;
-   int best = 0;
-   for (i = 0; i < broker_cnt; i++) {
-     if (brokers[i].ctx->standby_available &&
-         (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
-       best = i;
-     }
-   }
-
-   brokers[best].ctx->standby_only = 0;
-   brokers[best].ctx->state = STATE_GET_COOKIE;
-   return best;
-}
-
-int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-  // Select the first available broker and use it to establish a tunnel
-  int i;
-  for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
-      return i;
-    }
-  }
-  return -1;
-}
-
-int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-  // Select the r'th available broker and use it to establish a tunnel
-  int i;
-  int r = rand() % ready_cnt;
-  for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available && (r-- == 0)) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
-      return i;
-    }
-  }
-  return -1;
-}
 
 void term_handler(int signum)
 {
