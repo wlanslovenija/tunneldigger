@@ -1212,7 +1212,7 @@ void show_help(const char *app)
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
     "       -a            select broker based on use\n"
-    "       -g            select first available broker to connect to\n"
+    "       -g            select first available broker to connect to (default)\n"
     "       -r            select a random broker\n"
   );
 }
