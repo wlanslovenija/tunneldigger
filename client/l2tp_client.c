@@ -1219,12 +1219,6 @@ void show_help(const char *app)
 
 int main(int argc, char **argv)
 {
-  // Check for root permissions
-  if (getuid() != 0) {
-    fprintf(stderr, "ERROR: Root access is required to setup tunnels!\n");
-    return 1;
-  }
-
   // Install signal handlers
   signal(SIGPIPE, SIG_IGN);
   signal(SIGINT, term_handler);
@@ -1285,6 +1279,12 @@ int main(int argc, char **argv)
         return 1;
       }
     }
+  }
+
+  // Check for root permissions
+  if (getuid() != 0) {
+    fprintf(stderr, "ERROR: Root access is required to setup tunnels!\n");
+    return 1;
   }
 
   if (!uuid || broker_cnt < 1 || !tunnel_iface) {
