@@ -33,7 +33,7 @@ def setup_template():
             raise RuntimeError("failed to start container")
 
     container.attach_wait(lxc.attach_run_command, ["dhclient", "eth0"])
-    check_ping(container, '8.8.8.8', 10)
+    check_ping(container, 'google-public-dns-a.google.com', 10)
     container.attach_wait(lxc.attach_run_command, ["apt-get", "update"])
     container.attach_wait(lxc.attach_run_command, ["apt-get", "dist-upgrade", "-y"])
 
@@ -172,7 +172,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
     if not cont.start():
         raise RuntimeError("Can not start container %s" % cont.name)
     sleep(3)
-    if not check_ping(cont, '8.8.8.8', 20):
+    if not check_ping(cont, 'google-public-dns-a.google.com', 20):
         raise RuntimeError("Container doesn't have an internet connection %s"
                 % cont.name)
 
