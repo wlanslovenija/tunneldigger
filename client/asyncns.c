@@ -79,7 +79,7 @@ enum {
 };
 
 struct asyncns {
-    int fds[MESSAGE_FD_MAX];
+    int fds[4];
 
 #ifndef HAVE_PTHREAD
     pid_t workers[MAX_WORKERS];
@@ -196,8 +196,6 @@ static int close_allv(const int except_fds[]) {
 
     assert(except_fds);
 
-    /* We ignore FD_CLOEXEC here, since this is called in the child only anyway */
-
     if ((d = opendir("/proc/self/fd"))) {
 
         struct dirent *de;
@@ -272,7 +270,7 @@ static int close_allv(const int except_fds[]) {
         for (i = 0; except_fds[i] >= 0; i++)
             if (except_fds[i] == fd) {
                 found = 1;
-                break;
+                continue;
             }
 
         if (found)
@@ -758,21 +756,9 @@ asyncns_t* asyncns_new(unsigned n_proc) {
 
     memset(asyncns->queries, 0, sizeof(asyncns->queries));
 
-#ifdef SOCK_CLOEXEC
-    if (socketpair(PF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0, asyncns->fds) < 0 ||
-        socketpair(PF_UNIX, SOCK_DGRAM|SOCK_CLOEXEC, 0, asyncns->fds+2) < 0) {
-
-        /* Try again, without SOCK_CLOEXEC */
-        if (errno == EINVAL) {
-#endif
-            if (socketpair(PF_UNIX, SOCK_DGRAM, 0, asyncns->fds) < 0 ||
-                socketpair(PF_UNIX, SOCK_DGRAM, 0, asyncns->fds+2) < 0)
-                goto fail;
-#ifdef SOCK_CLOEXEC
-        } else
-            goto fail;
-    }
-#endif
+    if (socketpair(PF_UNIX, SOCK_DGRAM, 0, asyncns->fds) < 0 ||
+        socketpair(PF_UNIX, SOCK_DGRAM, 0, asyncns->fds+2) < 0)
+        goto fail;
 
     for (i = 0; i < MESSAGE_FD_MAX; i++)
         fd_cloexec(asyncns->fds[i]);
