@@ -566,7 +566,7 @@ void context_process_control_packet(l2tp_context *ctx)
         // Mark the connection as being available for later establishment
         ctx->standby_available = 1;
         ctx->timer_cookie = timer_now();
-        ctx->state = STATE_GET_COOKIE;
+        ctx->state = STATE_IDLE;
       }
       break;
     }
