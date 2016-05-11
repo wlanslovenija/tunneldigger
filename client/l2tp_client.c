@@ -241,8 +241,6 @@ int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
      }
    }
 
-   brokers[best].ctx->standby_only = 0;
-   brokers[best].ctx->state = STATE_GET_COOKIE;
    return best;
 }
 
@@ -252,8 +250,6 @@ int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int rea
   int i;
   for (i = 0; i < broker_cnt; i++) {
     if (brokers[i].ctx->standby_available) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
       return i;
     }
   }
@@ -267,8 +263,6 @@ int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
   int r = rand() % ready_cnt;
   for (i = 0; i < broker_cnt; i++) {
     if (brokers[i].ctx->standby_available && (r-- == 0)) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
       return i;
     }
   }
@@ -1382,6 +1376,10 @@ int main(int argc, char **argv)
     main_context = brokers[i].ctx;
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
+
+    /* activate the broker */
+    main_context->standby_only = 0;
+    main_context->state = STATE_GET_COOKIE;
 
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process
