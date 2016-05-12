@@ -538,6 +538,7 @@ void context_process_control_packet(l2tp_context *ctx)
           syslog(LOG_WARNING, "Received error response from broker with errorcode %d!", error_code);
         else
           syslog(LOG_WARNING, "Received error response from broker!");
+        // FIXME: is this really a good idea, to go into get cookie?
         ctx->state = STATE_GET_COOKIE;
       } else if (ctx->state == STATE_KEEPALIVE) {
         if (payload_length > 0)
@@ -555,6 +556,7 @@ void context_process_control_packet(l2tp_context *ctx)
 
         if (context_setup_tunnel(ctx, parse_u32(&buf)) < 0) {
           syslog(LOG_ERR, "Unable to create local L2TP tunnel!");
+          // FIXME: is this really a good idea, to go into get cookie?
           ctx->state = STATE_GET_COOKIE;
         } else {
           syslog(LOG_INFO, "Tunnel successfully established.");
@@ -1210,19 +1212,13 @@ void show_help(const char *app)
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
     "       -a            select broker based on use\n"
-    "       -g            select first available broker to connect to\n"
+    "       -g            select first available broker to connect to (default)\n"
     "       -r            select a random broker\n"
   );
 }
 
 int main(int argc, char **argv)
 {
-  // Check for root permissions
-  if (getuid() != 0) {
-    fprintf(stderr, "ERROR: Root access is required to setup tunnels!\n");
-    return 1;
-  }
-
   // Install signal handlers
   signal(SIGPIPE, SIG_IGN);
   signal(SIGINT, term_handler);
@@ -1283,6 +1279,12 @@ int main(int argc, char **argv)
         return 1;
       }
     }
+  }
+
+  // Check for root permissions
+  if (getuid() != 0) {
+    fprintf(stderr, "ERROR: Root access is required to setup tunnels!\n");
+    return 1;
   }
 
   if (!uuid || broker_cnt < 1 || !tunnel_iface) {
