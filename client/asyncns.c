@@ -18,6 +18,8 @@
   <http://www.gnu.org/licenses/>.
 ***/
 
+#define _GNU_SOURCE
+
 #include <assert.h>
 #include <fcntl.h>
 #include <signal.h>
