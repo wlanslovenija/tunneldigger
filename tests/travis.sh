@@ -12,7 +12,7 @@ export PATH=/usr/bin/:/usr/sbin:/usr/local/bin:/usr/local/sbin:/bin:/sbin
 unset VIRTUAL_ENV
 
 # retrieve git rev
-NEW_REV=$(cd $WORKSPACE && git log -1 --format=format:%H)
+NEW_REV=$TRAVIS_COMMIT
 
 # OLD_REV defined by .travis.yml
 # SELECT too
