@@ -33,7 +33,7 @@ class TestClientUsage(object):
 
         cont_client = tunneldigger.prepare('client', CONTEXT[0] + '_client', os.environ['CLIENT_REV'], bridge_name, '172.16.16.2/24')
 
-        if not check_if_git_contains(cont_client, '/git_repo', os.environ['CLIENT_REV'], '657aa1c81c6e487749d5777bbea6681e478a8a01'):
+        if not check_if_git_contains(cont_client, '/git_repo', os.environ['CLIENT_REV'], USAGE_REV):
             try:
                 from nose import SkipTest
             except ImportError:
