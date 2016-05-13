@@ -50,7 +50,7 @@ class TestClientUsage(object):
 
         # start all servers
         pids_all_servers = [run_server(x) for x in cont_all_servers]
-        pid_dummy_client = run_client(cont_dummy_client, [servers[0]+':8942'])
+        pid_dummy_client = run_client(cont_dummy_client, ['-b', servers[0]+':8942'])
 
         LOG.info("Created servers %s", [x.name for x in cont_all_servers])
         LOG.info("Created clients %s", [x.name for x in cont_all_clients])
@@ -59,7 +59,12 @@ class TestClientUsage(object):
         if not tunneldigger.check_ping(cont_dummy_client, '192.168.254.1', 10):
             raise RuntimeError("Dummy Client failed to ping server")
 
-        pid_client = run_client(cont_client, [x + ':8942' for x in servers])
+        # -a = usage broker
+        client_args = ['-a']
+        for srv in servers:
+            client_args.append('-b')
+            client_args.append(srv + ":8942")
+        pid_client = run_client(cont_client, client_args)
 
         # check if the client is connected to some server
         if not tunneldigger.check_ping(cont_client, '192.168.254.1', 10):
