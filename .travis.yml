@@ -15,4 +15,4 @@ install:
   - sudo iptables -t nat -L >/dev/null
   - sudo /usr/bin/python3 ./tests/tunneldigger.py --setup
 script:
-  - sudo sh ./tests/travis.sh
+  - sudo -E sh ./tests/travis.sh
