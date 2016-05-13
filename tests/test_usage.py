@@ -23,15 +23,12 @@ class TestClientUsage(object):
         - start client conf ABC and check if it's connecting to server B
         - start client conf AB and check if it's connecting to server B
         """
-        CONTEXT = []
-        CONTEXT.append(tunneldigger.get_random_context())
-        CONTEXT.append(tunneldigger.get_random_context())
-        CONTEXT.append(tunneldigger.get_random_context())
+        CONTEXT = tunneldigger.get_random_context()
 
-        bridge_name = "br-%s" % CONTEXT[0]
+        bridge_name = "br-%s" % CONTEXT
         tunneldigger.create_bridge(bridge_name)
 
-        cont_client = tunneldigger.prepare('client', CONTEXT[0] + '_client', os.environ['CLIENT_REV'], bridge_name, '172.16.16.2/24')
+        cont_client = tunneldigger.prepare('client', CONTEXT + '_usage_client', os.environ['CLIENT_REV'], bridge_name, '172.16.16.2/24')
 
         if not check_if_git_contains(cont_client, '/git_repo', os.environ['CLIENT_REV'], USAGE_REV):
             try:
@@ -42,12 +39,12 @@ class TestClientUsage(object):
             raise SkipTest("Client too old for this test.")
 
         servers = ['172.16.16.100', '172.16.16.101', '172.16.16.102']
-        cont_first = tunneldigger.prepare('server', CONTEXT[0] + '_server', USAGE_REV, bridge_name, servers[0]+'/24')
-        cont_second = tunneldigger.prepare('server', CONTEXT[1] + '_server', USAGE_REV, bridge_name, servers[1]+'/24')
-        cont_nonusage = tunneldigger.prepare('server', CONTEXT[2] + '_server', NONUSAGE_REV, bridge_name, servers[2]+'/24')
+        cont_first = tunneldigger.prepare('server', CONTEXT + '_first_server', USAGE_REV, bridge_name, servers[0]+'/24')
+        cont_second = tunneldigger.prepare('server', CONTEXT + '_second_server', USAGE_REV, bridge_name, servers[1]+'/24')
+        cont_nonusage = tunneldigger.prepare('server', CONTEXT + '_third_server', NONUSAGE_REV, bridge_name, servers[2]+'/24')
         cont_all_servers = [cont_first, cont_second, cont_nonusage]
 
-        cont_dummy_client = tunneldigger.prepare('client', CONTEXT[1] + '_client', os.environ['CLIENT_REV'],
+        cont_dummy_client = tunneldigger.prepare('client', CONTEXT + '_dummy_client', os.environ['CLIENT_REV'],
                                                  bridge_name, '172.16.16.1/24')
         cont_all_clients = [cont_dummy_client, cont_client]
 
