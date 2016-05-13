@@ -6,7 +6,7 @@ import tunneldigger
 from tunneldigger import check_if_git_contains, run_server, run_client, run_as_lxc
 
 # a revision which supports the usage command
-USAGE_REV = 'c026068c0b57e714ada4f8dbcc5b19bb8c04bb03'
+USAGE_REV = 'a798e7c6621b6842246fc5696c6edb6a705fbad9'
 # a very old revision which does not support usage
 NONUSAGE_REV = '92418563a84f591b55ce4bee9245073b311c30fb'
 
