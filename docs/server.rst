@@ -107,7 +107,7 @@ Configuration
 -------------
 
 The broker must be given a configuration file as first argument, an example of
-which is provided in ``l2tp_broker.cfg``. There are some options that must be
+which is provided in ``l2tp_broker.cfg.example``. There are some options that must be
 changed and some that can be left as default:
 
 * **address** should be configured with the external IP address that the clients will use to connect with the broker.
@@ -176,3 +176,11 @@ Routing Daemon
 
 The example hook scripts require that the routing daemon (like ``olsrd``) be
 configured with the Tunneldigger bridge interfaces.
+
+Running
+-------
+
+After you configured Tunneldigger, you can run the broker::
+
+    cd /srv/tunneldigger
+    /srv/env_tunneldigger/bin/python -m broker.main /srv/tunneldigger/broker/l2tp_broker.cfg

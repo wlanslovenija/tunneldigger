@@ -5,4 +5,5 @@ stop on runlevel [!2345]
 
 respawn
 
-exec /home/tunneldigger/env/bin/python /home/tunneldigger/tunneldigger/broker/l2tp_broker.py /home/tunneldigger/tunneldigger/broker/l2tp_broker.cfg
+chdir /home/tunneldigger/tunneldigger
+exec /home/tunneldigger/env/bin/python -m broker.main /home/tunneldigger/tunneldigger/broker/l2tp_broker.cfg

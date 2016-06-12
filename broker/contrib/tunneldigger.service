@@ -4,7 +4,8 @@ After=network.target auditd.service
 
 [Service]
 Type=simple
-ExecStart=/home/tunneldigger/env/bin/python /home/tunneldigger/tunneldigger/broker/l2tp_broker.py /home/tunneldigger/tunneldigger/broker/l2tp_broker.cfg
+WorkingDirectory=/home/tunneldigger/tunneldigger
+ExecStart=/home/tunneldigger/env/bin/python -m broker.main /home/tunneldigger/tunneldigger/broker/l2tp_broker.cfg
 KillMode=process
 Restart=on-failure
 
