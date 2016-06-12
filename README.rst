@@ -11,6 +11,12 @@ Documentation is found at:
 
 http://tunneldigger.readthedocs.org/
 
+.. warning::
+    ``master`` branch is not necessary stable and you should not be using it in production.
+    Instead, use the latest release. See history_ for the list of changes.
+
+.. _history: https://github.com/wlanslovenija/tunneldigger/blob/master/HISTORY.rst
+
 Source Code, Issue Tracker and Mailing List
 -------------------------------------------
 
