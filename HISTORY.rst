@@ -11,6 +11,7 @@ v0.2.0, 2015-Dec-24
 -------------------
 
 * Broker rewrite so that it can run on OpenWrt.
+* Broker is now run as ``python -m broker.main l2tp_broker.cfg`` from the repository directory.
 
 v0.1.0, 2015-Dec-16
 -------------------
