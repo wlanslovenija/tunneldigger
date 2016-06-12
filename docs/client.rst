@@ -21,3 +21,5 @@ package. Source code for such OpenWrt package can be `found here`_.
 
 .. _found here: https://github.com/wlanslovenija/firmware-packages-opkg/tree/master/net/tunneldigger
 .. _OpenWrt: https://openwrt.org/
+
+You can add the whole repository as an OpenWrt feed and add package to your firmware.
