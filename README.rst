@@ -11,6 +11,9 @@ Documentation is found at:
 
 http://tunneldigger.readthedocs.org/
 
+Source Code, Issue Tracker and Mailing List
+-------------------------------------------
+
 For development *wlan slovenija* open wireless network `development Trac`_ is
 used, so you can see `existing open tickets`_ or `open a new one`_ there. Source
 code is available on GitHub_. If you have any questions or if you want to
