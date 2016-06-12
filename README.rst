@@ -11,6 +11,10 @@ Documentation is found at:
 
 http://tunneldigger.readthedocs.org/
 
+Opkg (OpenWrt) packages for both Tunneldigger client and broker are available at:
+
+https://github.com/wlanslovenija/firmware-packages-opkg
+
 .. warning::
     ``master`` branch is not necessary stable and you should not be using it in production.
     Instead, use the latest release. See history_ for the list of changes.
