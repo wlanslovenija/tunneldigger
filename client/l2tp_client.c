@@ -207,10 +207,10 @@ typedef struct {
 
 // List of brokers
 typedef struct {
-    char *address;
-    char *port;
-    l2tp_context *ctx;
-  } broker_cfg;
+  char *address;
+  char *port;
+  l2tp_context *ctx;
+} broker_cfg;
 #define MAX_BROKERS 10
 
 // Forward declarations
@@ -947,7 +947,6 @@ void do_select(broker_cfg *brokers, int broker_cnt)
   tv.tv_usec = 0;
 
   FD_ZERO(&rfds);
-  FD_SET(ctx->fd, &rfds);
 
   // Add descriptor for DNS resolution
   int nsfd = asyncns_fd(asyncns_context);
