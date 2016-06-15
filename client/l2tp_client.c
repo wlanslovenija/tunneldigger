@@ -117,7 +117,9 @@ enum l2tp_limit_type {
 };
 
 enum l2tp_ctrl_state {
-  STATE_GET_USAGE,
+  STATE_IDLE, // doing nothing
+  STATE_USAGE_SEND, // send out a usage package
+  STATE_USAGE_WAIT, // wait for receiption
   STATE_GET_COOKIE,
   STATE_GET_TUNNEL,
   STATE_KEEPALIVE,
@@ -205,6 +207,15 @@ typedef struct {
   time_t timer_resolving;
 } l2tp_context;
 
+// List of brokers
+typedef struct {
+  char *address;
+  char *port;
+  l2tp_context *ctx;
+} broker_cfg;
+
+#define MAX_BROKERS 10
+
 // Forward declarations
 void context_delete_tunnel(l2tp_context *ctx);
 void context_close_tunnel(l2tp_context *ctx, uint8_t reason);
@@ -217,6 +228,46 @@ void context_free(l2tp_context *ctx);
 
 static l2tp_context *main_context = NULL;
 static asyncns_t *asyncns_context = NULL;
+
+int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+   // Select the r'th available broker and use it to establish a tunnel
+   int i = -1;
+   int best = 0;
+   for (i = 0; i < broker_cnt; i++) {
+     if (brokers[i].ctx->standby_available &&
+         (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
+       best = i;
+     }
+   }
+
+   return best;
+}
+
+int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the first available broker and use it to establish a tunnel
+  int i;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
+{
+  // Select the r'th available broker and use it to establish a tunnel
+  int i;
+  int r = rand() % ready_cnt;
+  for (i = 0; i < broker_cnt; i++) {
+    if (brokers[i].ctx->standby_available && (r-- == 0)) {
+      return i;
+    }
+  }
+  return -1;
+}
 
 time_t timer_now()
 {
@@ -502,7 +553,7 @@ void context_process_control_packet(l2tp_context *ctx)
   // Check packet type
   switch (type) {
     case CONTROL_TYPE_USAGE: {
-      if (ctx->state == STATE_GET_USAGE) {
+      if (ctx->state == STATE_USAGE_WAIT) {
         // broker usage information
         ctx->usage = parse_u16(&buf);
         syslog(LOG_DEBUG, "Broker usage: %p %s %u\n", ctx, ctx->broker_hostname, ctx->usage);
@@ -510,7 +561,7 @@ void context_process_control_packet(l2tp_context *ctx)
         // Mark the connection as being available for later establishment
         ctx->standby_available = 1;
         ctx->timer_cookie = timer_now();
-        ctx->state = STATE_GET_COOKIE;
+        ctx->state = STATE_IDLE;
       }
       break;
     }
@@ -524,9 +575,9 @@ void context_process_control_packet(l2tp_context *ctx)
         // Mark the connection as being available for later establishment
         ctx->standby_available = 1;
 
-        // Only switch to tunnel establishment state if the context is
-        // not in standby-only state
-        if (!ctx->standby_only)
+        if (ctx->standby_only) // inactive broker
+          ctx->state = STATE_IDLE;
+        else // this broker is now active
           ctx->state = STATE_GET_TUNNEL;
       }
       break;
@@ -972,7 +1023,7 @@ void context_process(l2tp_context *ctx)
             ctx->state = STATE_REINIT;
           } else {
             ctx->timer_usage = timer_now();
-            ctx->state = STATE_GET_USAGE;
+            ctx->state = STATE_USAGE_SEND;
           }
           asyncns_freeaddrinfo(result);
           ctx->broker_resq = NULL;
@@ -988,12 +1039,15 @@ void context_process(l2tp_context *ctx)
       }
       break;
     }
-    case STATE_GET_USAGE: {
-      // Get usage information if available
-      if (!is_timeout(&ctx->timer_usage, 2))
+    case STATE_USAGE_SEND: {
         context_send_packet(ctx, CONTROL_TYPE_USAGE, "UUUUUUUU", 8);
-      else
-        // Time out. The broker might not support usage. Ignore it.
+        ctx->timer_usage = timer_now();
+        ctx->state = STATE_USAGE_WAIT;
+        break;
+    }
+    case STATE_USAGE_WAIT: {
+      // Get usage information if available
+      if (is_timeout(&ctx->timer_usage, 2))
         ctx->state = STATE_GET_COOKIE;
       break;
     }
@@ -1097,6 +1151,8 @@ void context_process(l2tp_context *ctx)
       }
       break;
     }
+    case STATE_IDLE:
+      break;
   }
 }
 
@@ -1127,59 +1183,7 @@ void context_free(l2tp_context *ctx)
   free(ctx);
 }
 
-// List of brokers
-typedef struct {
-  char *address;
-  char *port;
-  l2tp_context *ctx;
-} broker_cfg;
-#define MAX_BROKERS 10
 
-int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-   // Select the r'th available broker and use it to establish a tunnel
-   int i = -1;
-   int best = 0;
-   for (i = 0; i < broker_cnt; i++) {
-     if (brokers[i].ctx->standby_available &&
-         (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
-       best = i;
-     }
-   }
-
-   brokers[best].ctx->standby_only = 0;
-   brokers[best].ctx->state = STATE_GET_COOKIE;
-   return best;
-}
-
-int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-  // Select the first available broker and use it to establish a tunnel
-  int i;
-  for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
-      return i;
-    }
-  }
-  return -1;
-}
-
-int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
-{
-  // Select the r'th available broker and use it to establish a tunnel
-  int i;
-  int r = rand() % ready_cnt;
-  for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available && (r-- == 0)) {
-      brokers[i].ctx->standby_only = 0;
-      brokers[i].ctx->state = STATE_GET_COOKIE;
-      return i;
-    }
-  }
-  return -1;
-}
 
 void term_handler(int signum)
 {
@@ -1372,6 +1376,10 @@ int main(int argc, char **argv)
     main_context = brokers[i].ctx;
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
+
+    /* activate the broker */
+    main_context->standby_only = 0;
+    main_context->state = STATE_GET_COOKIE;
 
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process
