@@ -1,5 +1,7 @@
 #
 # NETLINK routines. Adapted from work by Johannes Berg <johannes@sipsolutions.net>.
+# See: http://git.sipsolutions.net/?p=pynl80211.git;a=blob;f=netlink.py;hb=HEAD
+# This file is licensed under GPLv2+.
 #
 import socket
 import os
