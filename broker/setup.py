@@ -15,7 +15,8 @@ setup(
     author_email='open@wlan-si.net',
     url='https://github.com/wlanslovenija/tunneldigger',
     license='AGPLv3',
-    packages=find_packages(exclude=('*.tests', '*.tests.*', 'tests.*', 'tests')),
+    package_dir={'': 'src'},
+    packages=find_packages(where='src', exclude=['_ffi_src', '_ffi_src.*']),
     package_data={},
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -28,6 +29,11 @@ setup(
     install_requires=[
         'netfilter>=0.6.2',
         'six>=1.10.0',
+        'cffi>=1.4.1',
     ],
     extras_require={},
+    cffi_modules=[
+        'src/_ffi_src/build_conntrack.py:ffibuilder',
+    ],
+    ext_package='tunneldigger_broker._ffi',
 )
