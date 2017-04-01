@@ -39,7 +39,12 @@ cd /srv/
 virtualenv env_tunneldigger
 
 . /srv/env_tunneldigger/bin/activate
-pip install -r /srv/tunneldigger/broker/requirements.txt
+if [ -f /srv/tunneldigger/broker/setup.py ]; then
+    cd /srv/tunneldigger/broker
+    python setup.py install
+else
+    pip install -r /srv/tunneldigger/broker/requirements.txt
+fi
 
 # configure tunneldigger
 # dont let cp fail when using an older version of tunneldigger

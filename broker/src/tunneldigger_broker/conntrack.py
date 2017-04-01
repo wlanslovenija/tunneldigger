@@ -1,4 +1,5 @@
 import socket
+import struct
 
 from ._ffi._conntrack import ffi, lib
 
@@ -49,15 +50,9 @@ class ConnectionManager(object):
             if self.family == socket.AF_INET:
                 # IPv4.
                 if src:
-                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV4_SRC, socket.inet_pton(self.family, src))
+                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV4_SRC, inet_pton(self.family, src))
                 if dst:
-                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV4_DST, socket.inet_pton(self.family, dst))
-            elif self.family == socket.AF_INET6:
-                # IPv6.
-                if src:
-                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV6_SRC, socket.inet_pton(self.family, src))
-                if dst:
-                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV6_DST, socket.inet_pton(self.family, dst))
+                    lib.nfct_set_attr_u32(ct, lib.ATTR_IPV4_DST, inet_pton(self.family, dst))
             else:
                 raise ConntrackError("Unsupported address family: {}".format(self.family))
 
@@ -102,6 +97,17 @@ class ConnectionManager(object):
                 lib.nfct_close(handle_query)
         finally:
             lib.nfct_destroy(ct)
+
+
+def inet_pton(family, address):
+    """
+    Wrapper for inet_pton.
+    """
+
+    if family == socket.AF_INET:
+        return struct.unpack('!I', socket.inet_pton(family, address))[0]
+    else:
+        raise NotImplementedError
 
 
 @ffi.def_extern()

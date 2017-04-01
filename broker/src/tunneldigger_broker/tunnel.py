@@ -152,7 +152,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         # that the below filter must match the above netfilter rules.
         try:
             self.broker.conntrack.kill(
-                proto=conntrack.IPPROTO_UDP,
+                proto=socket.IPPROTO_UDP,
                 src=self.endpoint[0],
                 dst=self.address[0],
                 sport=self.endpoint[1],
@@ -160,7 +160,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             )
 
             self.broker.conntrack.kill(
-                proto=conntrack.IPPROTO_UDP,
+                proto=socket.IPPROTO_UDP,
                 src=self.address[0],
                 dst=self.endpoint[0],
                 sport=self.address[1],

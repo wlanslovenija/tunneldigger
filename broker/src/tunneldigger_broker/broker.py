@@ -1,9 +1,11 @@
+import logging
+import socket
+import time
+import traceback
+
 import conntrack
 import netfilter.table
 import netfilter.rule
-import logging
-import time
-import traceback
 
 from . import l2tp, protocol, network, tunnel as td_tunnel
 
@@ -201,8 +203,8 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
         self.netlink = tunnel_manager.netlink
 
         # Clear out the connection tracking tables.
-        self.conntrack.killall(proto=conntrack.IPPROTO_UDP, src=self.address[0])
-        self.conntrack.killall(proto=conntrack.IPPROTO_UDP, dst=self.address[0])
+        self.conntrack.killall(proto=socket.IPPROTO_UDP, src=self.address[0])
+        self.conntrack.killall(proto=socket.IPPROTO_UDP, dst=self.address[0])
 
     def get_tunnel_manager(self):
         """

@@ -49,6 +49,10 @@ def setup_template():
         "build-essential",
         "libnl-dev",
         "linux-libc-dev",
+        "libffi-dev",
+        "python-cffi",
+        "libnfnetlink-dev",
+        "libnetfilter-conntrack-dev",
         ]
     pkg_to_install += [
         "wget",

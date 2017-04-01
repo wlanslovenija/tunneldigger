@@ -26,6 +26,9 @@ setup(
     ],
     include_package_data=True,
     zip_safe=False,
+    setup_requires=[
+        'cffi>=1.4.1',
+    ],
     install_requires=[
         'netfilter>=0.6.2',
         'six>=1.10.0',
