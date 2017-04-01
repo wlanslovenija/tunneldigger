@@ -167,7 +167,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
                 dport=self.endpoint[1],
             )
         except conntrack.ConntrackError:
-            pass
+            logger.warning("Failed to clear connection tracking table entries.")
 
         self.created_time = time.time()
 
@@ -331,12 +331,15 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
 
         if address != self.endpoint:
+            logger.warning("Protocol error: tunnel endpoint has changed.")
             return False
 
         if uuid != self.uuid:
+            logger.warning("Protocol error: tunnel UUID has changed.")
             return False
 
         if remote_tunnel_id != self.remote_tunnel_id:
+            logger.warning("Protocol error: tunnel identifier has changed.")
             return False
 
         # Respond with tunnel establishment message.

@@ -1,3 +1,4 @@
+import logging
 import socket
 import struct
 
@@ -7,6 +8,9 @@ __all__ = [
     'ConntrackError',
     'ConnectionManager',
 ]
+
+# Logger.
+logger = logging.getLogger("tunneldigger.conntrack")
 
 
 class ConntrackError(Exception):
@@ -47,6 +51,7 @@ class ConnectionManager(object):
 
         try:
             lib.nfct_set_attr_u8(ct, lib.ATTR_L3PROTO, self.family)
+
             if self.family == socket.AF_INET:
                 # IPv4.
                 if src:
@@ -80,7 +85,8 @@ class ConnectionManager(object):
                         return lib.NFCT_CB_CONTINUE
 
                     # Remove any matching conntrack entries using the update handle.
-                    lib.nfct_query(handle_update, lib.NFCT_Q_DESTROY, entry_ct)
+                    if lib.nfct_query(handle_update, lib.NFCT_Q_DESTROY, entry_ct) == -1:
+                        logger.warning("Failed to remove entry from conntrack table.")
                     return lib.NFCT_CB_CONTINUE
 
                 try:

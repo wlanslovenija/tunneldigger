@@ -1,8 +1,12 @@
 import hashlib
 import hmac
+import logging
 import os
 import time
 import struct
+
+# Logger.
+logger = logging.getLogger("tunneldigger.protocol")
 
 # Unreliable messages (0x00 - 0x7F).
 CONTROL_TYPE_INVALID   = 0x00
@@ -123,6 +127,7 @@ class HandshakeProtocolMixin(object):
                 remote_tunnel_id = 1
 
             if not self.create_tunnel(address, uuid, remote_tunnel_id):
+                logger.warning("Failed to create tunnel while processing prepare request.")
                 self.write_message(address, CONTROL_TYPE_ERROR)
 
             return True
