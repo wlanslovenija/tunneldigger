@@ -1,16 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
-
 from setuptools import find_packages, setup
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 
 setup(
     name='tunneldigger-broker',
     version=VERSION,
     description="Tunneldigger broker.",
-    long_description=open(os.path.join(os.path.dirname(__file__), '..', 'README.rst')).read(),
+    long_description="Tunneldigger broker.",
     author='wlan slovenija',
     author_email='open@wlan-si.net',
     url='https://github.com/wlanslovenija/tunneldigger',
