@@ -33,16 +33,10 @@ class ConnectionManager(object):
 
         self.family = family
 
-    def kill(self, proto, src, dst, sport, dport):
+    def _build_query(self, proto=None, src=None, dst=None, sport=None, dport=None):
         """
-        Remove a specific connection tracking entry.
-        """
-
-        return self.killall(proto, src, dst, sport, dport)
-
-    def killall(self, proto=None, src=None, dst=None, sport=None, dport=None):
-        """
-        Remove all connection tracking entries matching the filter.
+        Helper for preparing conntrack queries. The caller is responsible
+        for freeing the allocated query object.
         """
 
         ct = lib.nfct_new()
@@ -70,7 +64,37 @@ class ConnectionManager(object):
             if dport:
                 # Destination port.
                 lib.nfct_set_attr_u16(ct, lib.ATTR_PORT_DST, socket.htons(dport))
+        except:
+            lib.nfct_destroy(ct)
+            raise
 
+        return ct
+
+    def kill(self, proto, src, dst, sport, dport):
+        """
+        Remove a specific connection tracking entry.
+        """
+
+        ct = self._build_query(proto, src, dst, sport, dport)
+
+        try:
+            handle = lib.nfct_open(lib.CONNTRACK, 0)
+            if not handle:
+                raise ConntrackError("nfct_open failed")
+
+            lib.nfct_query(handle, lib.NFCT_Q_DESTROY, ct)
+        finally:
+            lib.nfct_close(handle)
+            lib.nfct_destroy(ct)
+
+    def killall(self, proto=None, src=None, dst=None, sport=None, dport=None):
+        """
+        Remove all connection tracking entries matching the filter.
+        """
+
+        ct = self._build_query(proto, src, dst, sport, dport)
+
+        try:
             handle_query = lib.nfct_open(lib.CONNTRACK, 0)
             if not handle_query:
                 raise ConntrackError("nfct_open failed")
@@ -111,7 +135,7 @@ def inet_pton(family, address):
     """
 
     if family == socket.AF_INET:
-        return struct.unpack('!I', socket.inet_pton(family, address))[0]
+        return struct.unpack('=I', socket.inet_pton(family, address))[0]
     else:
         raise NotImplementedError
 
