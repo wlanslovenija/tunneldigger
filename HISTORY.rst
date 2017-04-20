@@ -1,6 +1,9 @@
 vNEXT
 -----
 
+v0.3.0, 2017-Apr-02
+-------------------
+
 * Fixed double command bug in traffic control code.
 * Added optional broker selection based on usage.
 * Fixed off-by-one error in PREPARE package.
