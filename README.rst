@@ -18,8 +18,6 @@ Opkg (OpenWrt) packages for both Tunneldigger client and broker are available at
 
 https://github.com/wlanslovenija/firmware-packages-opkg
 
-.. _history: https://github.com/wlanslovenija/tunneldigger/blob/master/HISTORY.rst
-
 Source Code, Issue Tracker and Mailing List
 -------------------------------------------
 
