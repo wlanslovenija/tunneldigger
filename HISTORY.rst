@@ -9,6 +9,10 @@ v0.3.0, 2017-Apr-02
 * Fixed off-by-one error in PREPARE package.
 * Added tests.
 * Added ``fq_codel`` ``tc`` rule to help alleviate buffer bloat.
+* Added new CFFI-based conntrack bindings.
+* Broker can now be installed as a Python package via ``setup.py``. Due to
+  this change it is now run as ``python -m tunneldigger_broker.main l2tp_broker.cfg``
+  after installation.
 
 v0.2.0, 2015-Dec-24
 -------------------
