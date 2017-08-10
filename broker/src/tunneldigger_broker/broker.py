@@ -42,7 +42,7 @@ class TunnelManager(object):
         self.hook_manager = hook_manager
         self.max_tunnels = max_tunnels
         self.tunnel_id_base = tunnel_id_base
-        self.tunnel_ids = set(xrange(tunnel_id_base, tunnel_id_base + max_tunnels + 1))
+        self.tunnel_ids = set(xrange(tunnel_id_base, tunnel_id_base + max_tunnels))
         self.tunnel_port_base = tunnel_port_base
         self.namespace = namespace
         self.tunnels = {}
