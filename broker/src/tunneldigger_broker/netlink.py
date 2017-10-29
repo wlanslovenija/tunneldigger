@@ -165,6 +165,14 @@ class Connection:
                 msg.pid = pid
                 contents = contents[msglen:]
 
+                if msg.type == NLMSG_ERROR:
+                    errno = -struct.unpack("i", msg.payload[:4])[0]
+                    if errno != 0:
+                        err = OSError("Netlink error: %s (%d)" % (
+                                                             os.strerror(errno), errno))
+                        err.errno = errno
+                        raise err
+                # A non-error message
                 if not multiple:
                     messages.append(msg)
                     done = True
@@ -173,12 +181,8 @@ class Connection:
                     done = True
                     break
                 elif msg.type == NLMSG_ERROR:
-                    errno = -struct.unpack("i", msg.payload[:4])[0]
-                    if errno != 0:
-                        err = OSError("Netlink error: %s (%d)" % (
-                                                             os.strerror(errno), errno))
-                        err.errno = errno
-                        raise err
+                    # an ack
+                    pass
                 else:
                     messages.append(msg)
 
