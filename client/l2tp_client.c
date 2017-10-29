@@ -229,12 +229,12 @@ static asyncns_t *asyncns_context = NULL;
 
 int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
 {
-   // Select the r'th available broker and use it to establish a tunnel.
+   // Select the available broker with the least usage and use it to establish a tunnel.
    int i = -1;
-   int best = 0;
+   int best = -1;
    for (i = 0; i < broker_cnt; i++) {
      if (brokers[i].ctx->standby_available &&
-         (brokers[i].ctx->usage < brokers[best].ctx->usage)) {
+         (best < 0 || brokers[i].ctx->usage < brokers[best].ctx->usage)) {
        best = i;
      }
    }
