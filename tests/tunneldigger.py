@@ -84,7 +84,7 @@ def configure_network(container, bridge, ip_netmask):
         ('lxc.network.link', bridge),
         ('lxc.network.flags', 'up'),
         ('lxc.network.ipv4', ip_netmask),
-        ]
+    ]
 
     for item in config:
         container.append_config_item(item[0], item[1])

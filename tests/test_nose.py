@@ -28,6 +28,10 @@ def setup_module():
     CLIENT, SERVER = tunneldigger.prepare_containers(CONTEXT, os.environ['CLIENT_REV'], os.environ['SERVER_REV'])
     SERVER_PID = tunneldigger.run_server(SERVER)
     CLIENT_PID = tunneldigger.run_client(CLIENT, ['-b', '172.16.16.1:8942'])
+
+    if not tunneldigger.check_ping(CLIENT, '172.16.16.1', 10):
+        raise RuntimeError("Unable to ping server container, possible test network issue")
+
     # explicit no Exception when ping fails
     # it's better to poll the client for a ping rather doing a long sleep
     tunneldigger.check_ping(CLIENT, '192.168.254.1', 20)
