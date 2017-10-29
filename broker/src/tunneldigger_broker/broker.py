@@ -54,6 +54,7 @@ class TunnelManager(object):
         # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
         # broker from being overwhelmed with creating tunnels, especially on embedded devices.
         if self.last_tunnel_created is not None and now - self.last_tunnel_created < 10:
+            logger.info("Rejecting tunnel %s:%s (%s) due to rate limiting" % (address[0], address[1], uuid))
             return False
 
         try:

@@ -127,7 +127,7 @@ class HandshakeProtocolMixin(object):
                 remote_tunnel_id = 1
 
             if not self.create_tunnel(address, uuid, remote_tunnel_id):
-                logger.warning("Failed to create tunnel while processing prepare request.")
+                logger.warning("Failed to create tunnel (%s) while processing prepare request." % uuid)
                 self.write_message(address, CONTROL_TYPE_ERROR)
 
             return True
