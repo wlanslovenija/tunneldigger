@@ -56,9 +56,11 @@ Also the following Debian packages are required:
 
 * ``iproute``
 * ``bridge-utils``
-* ``libnetfilter-conntrack3``
+* ``libnetfilter-conntrack-dev``
+* ``libnfnetlink-dev``
+* ``libffi-dev``
 * ``python-dev``
-* ``libevent-``
+* ``libevent-dev``
 
 If you would like to use the already supplied hook scripts to setup the network
 interfaces, you also need the following packages:
@@ -73,14 +75,11 @@ not affect the versions that are installed for Tunneldigger.
 
 You can install all of the above simply by running on Debian::
 
-    sudo apt-get install iproute bridge-utils libnetfilter-conntrack3 python-dev libevent-dev ebtables python-virtualenv
+    sudo apt-get install iproute bridge-utils libnetfilter-conntrack-dev libnfnetlink-dev libffi-dev python-dev libevent-dev ebtables python-virtualenv
 
 and for Fedora you can use this command::
 
     sudo yum install iproute bridge-utils libnetfilter_conntrack python-devel libevent-devel ebtables libnl-devel python-pip python-virtualenv
-
-There are also some Python modules required, all of them are listed in the 
-``requirements.txt`` file that is included in the Tunneldigger distribution.
 
 Installation
 ------------
@@ -97,11 +96,11 @@ repository into ``/srv/tunneldigger/tunneldigger`` by doing::
     cd /srv/tunneldigger
     git clone https://github.com/wlanslovenija/tunneldigger.git
 
-Next you have to enter the environment and install all of the
-dependencies from ``requirements.txt``, you can do this simply by running::
+Next you have to enter the environment and install the broker alongside its dependencies::
 
     source env_tunneldigger/bin/activate
-    pip install -r tunneldigger/broker/requirements.txt
+    cd broker
+    python setup.py install
 
 Configuration
 -------------
@@ -183,4 +182,4 @@ Running
 After you configured Tunneldigger, you can run the broker::
 
     cd /srv/tunneldigger
-    /srv/env_tunneldigger/bin/python -m broker.main /srv/tunneldigger/broker/l2tp_broker.cfg
+    /srv/env_tunneldigger/bin/python -m tunneldigger_broker.main /srv/tunneldigger/broker/l2tp_broker.cfg
