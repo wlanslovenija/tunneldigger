@@ -96,7 +96,7 @@ class HookManager(object):
     Manages hooks.
     """
 
-    def __init__(self, event_loop):
+    def __init__(self, event_loop, log_arguments):
         """
         Constructs a new hook manager instance.
 
@@ -106,6 +106,7 @@ class HookManager(object):
         self.event_loop = event_loop
         self.hooks = {}
         self.processes = {}
+        self.log_arguments = log_arguments
 
         # Create a file descriptor so we can get notified of SIGCHLD signals in the
         # context of the event loop (and not in an arbitrary location).
@@ -141,7 +142,10 @@ class HookManager(object):
         if not script:
             return
 
-        logger.info("Running hook '%s' via script '%s %s'." % (name, script, " ".join([str(x) for x in args])))
+        if self.log_arguments:
+            logger.info("Running hook '%s' via script '%s %s'." % (name, script, " ".join([str(x) for x in args])))
+        else:
+            logger.info("Running hook '%s' via script '%s'." % (name, script))
         try:
             process = HookProcess(name, script, args)
             process.register(self.event_loop)

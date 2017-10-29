@@ -18,7 +18,7 @@ class TunnelManager(object):
     Tunnel manager.
     """
 
-    def __init__(self, hook_manager, max_tunnels, tunnel_id_base, tunnel_port_base, namespace):
+    def __init__(self, hook_manager, max_tunnels, tunnel_id_base, tunnel_port_base, namespace, log_ip_addresses):
         """
         Constructs a tunnel manager.
 
@@ -37,6 +37,7 @@ class TunnelManager(object):
         self.namespace = namespace
         self.tunnels = {}
         self.last_tunnel_created = None
+        self.log_ip_addresses = log_ip_addresses
 
     def create_tunnel(self, broker, address, uuid, remote_tunnel_id):
         """
@@ -51,10 +52,15 @@ class TunnelManager(object):
 
         now = time.time()
 
+        if self.log_ip_addresses:
+            tunnel_str = "%s:%s (%s)" % (address[0], address[1], uuid)
+        else:
+            tunnel_str = "(%s)" % uuid
+
         # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
         # broker from being overwhelmed with creating tunnels, especially on embedded devices.
         if self.last_tunnel_created is not None and now - self.last_tunnel_created < 10:
-            logger.info("Rejecting tunnel %s:%s (%s) due to rate limiting" % (address[0], address[1], uuid))
+            logger.info("Rejecting tunnel %s due to rate limiting" % tunnel_str)
             return False
 
         try:
@@ -62,7 +68,7 @@ class TunnelManager(object):
         except KeyError:
             return False
 
-        logger.info("Creating tunnel %s:%s (%s) with id %d." % (address[0], address[1], uuid, tunnel_id))
+        logger.info("Creating tunnel %s with id %d." % (tunnel_str, tunnel_id))
 
         try:
             tunnel = td_tunnel.Tunnel(
