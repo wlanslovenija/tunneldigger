@@ -41,7 +41,7 @@ LOGGING_CONFIGURATION = {
     'loggers': {
         'tunneldigger': {
             'handlers': ['console'],
-            'level': 'INFO',
+            'level': config.get('log', 'verbosity'),
         }
     }
 }

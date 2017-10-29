@@ -15,12 +15,8 @@ tunnel_id_base=100
 ; configure disjunct ports, and tunnel identifiers in order for
 ; namespacing to work
 namespace=default
-; check if all kernel module are loaded. Do not check for built-ins.
-check_modules=true
 
 [log]
-; Log filename
-filename=tunneldigger-broker.log
 ; Verbosity
 verbosity=DEBUG
 ; Should IP addresses be logged or not
