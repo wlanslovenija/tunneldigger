@@ -207,6 +207,7 @@ typedef struct {
   char *address;
   char *port;
   l2tp_context *ctx;
+  uint8_t broken;
 } broker_cfg;
 
 // Maximum number of brokers that can be handled in a single process.
@@ -1287,6 +1288,7 @@ int main(int argc, char **argv)
         brokers[broker_cnt].address = strndup(optarg, pos - optarg);
         brokers[broker_cnt].port = strdup(pos + 1);
         brokers[broker_cnt].ctx = NULL;
+        brokers[broker_cnt].broken = 0;
         broker_cnt++;
         break;
       }
@@ -1346,17 +1348,35 @@ int main(int argc, char **argv)
   }
 
   for (;;) {
+    int working_brokers = 0;
     // Make sure all brokers are in sane state.
     for (i = 0; i < broker_cnt; i++) {
       context_reinitialize(brokers[i].ctx);
+      if (!brokers[i].broken)
+        working_brokers += 1;
     }
 
     syslog(LOG_INFO, "Performing broker selection...");
 
     // Reset availability information and standby setting.
     for (i = 0; i < broker_cnt; i++) {
+      // Re-enable all brokers if they are all broken
+      if (working_brokers == 0) {
+        brokers[i].broken = 0;
+      }
       // Start hostname resolution and connect process.
-      context_start_connect(brokers[i].ctx);
+      if (!brokers[i].broken) {
+        context_start_connect(brokers[i].ctx);
+      } else {
+        syslog(LOG_INFO, "Not trying %s:%s again as it broke last time we tried.",
+          brokers[i].address, brokers[i].port);
+        brokers[i].ctx->state = STATE_IDLE;
+      }
+    }
+    // Adapt working_brokers, needs updating if we re-enabled brokers
+    if (working_brokers == 0) {
+      syslog(LOG_INFO, "All brokers sent us an error, trying them all again.");
+      working_brokers = broker_cnt;
     }
 
     // Perform broker processing for 20 seconds or until all brokers are ready
@@ -1375,7 +1395,7 @@ int main(int argc, char **argv)
         ready_cnt += brokers[i].ctx->standby_available ? 1 : 0;
       }
 
-      if (ready_cnt == broker_cnt || is_timeout(&timer_collect, 20))
+      if (ready_cnt == working_brokers || is_timeout(&timer_collect, 20))
         break;
 
       // First available broker just use the first one available.
@@ -1398,6 +1418,11 @@ int main(int argc, char **argv)
     main_context->standby_only = 0;
     main_context->state = STATE_GET_COOKIE;
 
+    // Initially, we mark this broker as broken.  We will remove this mark after establishing
+    // a connection.  We only want to consider a broker as broker if the initial connection fails;
+    // disconnecting later (e.g. because the broker got restarted) is fine.
+    brokers[i].broken = 1;
+
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process.
     int restart_timer = 0;
@@ -1409,6 +1434,9 @@ int main(int argc, char **argv)
       if (main_context->state == STATE_REINIT) {
         syslog(LOG_ERR, "Connection to %s lost.", main_context->broker_hostname);
         break;
+      } else if (main_context->state == STATE_KEEPALIVE) {
+        // We successfully established a connection, this broker is fine.
+        brokers[i].broken = 0;
       }
 
       // If the connection is lost, we start the reconnection timer.
