@@ -72,6 +72,8 @@ class HookProcess(object):
             pass
 
         self.process.poll()
+        self.process.stdout.close()
+        self.process.stderr.close()
 
     def read(self, file_object):
         """
