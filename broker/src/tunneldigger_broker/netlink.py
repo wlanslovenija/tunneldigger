@@ -153,6 +153,17 @@ class Connection:
         self.descriptor.send(msg)
 
     def recv(self, multiple = False):
+        """
+        Receive message(s) from the netlink socket.
+
+        :param multiple: Control the receiving mode.
+
+        In single-message mode, exactly one message is received.  If that message is an error,
+        an exception is raised.  Otherwise (including if the message is an ack), it is returned.
+        In multiple-message mode, messages are received until the first NLMSG_DONE.
+        If there is an error, an exception is raised.  Acks and the final NLMSG_DONE are dropped.
+        The other messages are returned in a list.
+        """
         messages = []
         done = False
 
