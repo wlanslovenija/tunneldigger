@@ -172,6 +172,7 @@ class Connection:
                                                              os.strerror(errno), errno))
                         err.errno = errno
                         raise err
+
                 # A non-error message
                 if not multiple:
                     messages.append(msg)
