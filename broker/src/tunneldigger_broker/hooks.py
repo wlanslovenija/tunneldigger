@@ -146,6 +146,7 @@ class HookManager(object):
             logger.info("Running hook '%s' via script '%s %s'." % (name, script, " ".join([str(x) for x in args])))
         else:
             logger.info("Running hook '%s' via script '%s'." % (name, script))
+
         try:
             process = HookProcess(name, script, args)
             process.register(self.event_loop)

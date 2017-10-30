@@ -55,7 +55,10 @@ logger.info("Initializing the tunneldigger broker.")
 event_loop = eventloop.EventLoop()
 
 # Initialize the hook manager.
-hook_manager = hooks.HookManager(event_loop, log_arguments=config.getboolean('log', 'log_ip_addresses'))
+hook_manager = hooks.HookManager(
+    event_loop=event_loop,
+    log_arguments=config.getboolean('log', 'log_ip_addresses'),
+)
 for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-changed'):
     try:
         script = config.get('hooks', hook).strip()
