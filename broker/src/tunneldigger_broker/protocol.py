@@ -98,6 +98,8 @@ class HandshakeProtocolMixin(object):
         """
 
         if msg_type == CONTROL_TYPE_COOKIE:
+            # Packet format:
+            # 8 bytes of padding, to make sure the response is no larger than the request.
             if len(msg_data) < 8:
                 return
 
@@ -132,6 +134,11 @@ class HandshakeProtocolMixin(object):
 
             return True
         elif msg_type == CONTROL_TYPE_USAGE:
+            # Packet format:
+            # 8 bytes of padding, to make sure the response is no larger than the request.
+            if len(msg_data) < 8:
+                return
+
             tunnel_manager = self.get_tunnel_manager()
 
             # Compute tunnel usage information.
