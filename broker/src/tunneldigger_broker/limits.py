@@ -12,16 +12,14 @@ class LimitManager(object):
     Tunnel traffic limit manager.
     """
 
-    def __init__(self, tunnel, session_id):
+    def __init__(self, tunnel):
         """
         Class constructor.
 
         :param tunnel: Tunnel instance
-        :parma session_id: Session identifier
         """
 
         self.tunnel = tunnel
-        self.session_id = session_id
 
     def configure(self, limit_message):
         """
@@ -48,7 +46,7 @@ class LimitManager(object):
 
             # Setup bandwidth limit using Linux traffic shaping.
             try:
-                tc = traffic_control.TrafficControl(self.tunnel.get_session_name(self.session_id))
+                tc = traffic_control.TrafficControl(self.tunnel.get_session_name())
                 tc.reset()
                 tc.set_fixed_bandwidth(bandwidth)
             except traffic_control.TrafficControlError:

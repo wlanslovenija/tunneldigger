@@ -51,7 +51,16 @@ class TunnelManager(object):
         self.pmtu_fixed = pmtu_fixed
         self.log_ip_addresses = log_ip_addresses
 
-    def create_tunnel(self, broker, address, uuid, remote_tunnel_id):
+    def report_usage(self, client_features):
+        """
+        Returns a number between 0 and 1 << 16 (i.e., a 16-bit number) indicating the load of the
+        broker.
+
+        :param client_features: Client feature flags
+        """
+        return int((float(len(self.tunnels)) / self.max_tunnels) * 65535)
+
+    def create_tunnel(self, broker, address, uuid, remote_tunnel_id, client_features):
         """
         Creates a new tunnel.
 
@@ -59,6 +68,7 @@ class TunnelManager(object):
         :param address: Remote tunnel endpoint address (host, port) tuple
         :param uuid: Unique tunnel identifier received from the remote host
         :param remote_tunnel_id: Remotely assigned tunnel identifier
+        :param client_features: Client feature flags
         :return: True if a tunnel has been created, False otherwise
         """
 
@@ -84,13 +94,14 @@ class TunnelManager(object):
 
         try:
             tunnel = td_tunnel.Tunnel(
-                broker,
-                (broker.address[0], self.tunnel_port_base + tunnel_id),
-                address,
-                uuid,
-                tunnel_id,
-                remote_tunnel_id,
-                self.pmtu_fixed,
+                broker=broker,
+                address=(broker.address[0], self.tunnel_port_base + tunnel_id),
+                endpoint=address,
+                uuid=uuid,
+                tunnel_id=tunnel_id,
+                remote_tunnel_id=remote_tunnel_id,
+                pmtu_fixed=self.pmtu_fixed,
+                client_features=client_features,
             )
             tunnel.register(broker.event_loop)
             tunnel.setup_tunnel()
@@ -233,14 +244,15 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
 
         return self.tunnel_manager
 
-    def create_tunnel(self, address, uuid, remote_tunnel_id):
+    def create_tunnel(self, address, uuid, remote_tunnel_id, client_features):
         """
         Called when a new tunnel should be created.
 
         :param address: Remote tunnel endpoint address (host, port) tuple
         :param uuid: Unique tunnel identifier received from the remote host
         :param remote_tunnel_id: Remotely assigned tunnel identifier
+        :param client_features: Client feature flags
         :return: True if a tunnel has been created, False otherwise
         """
 
-        return self.tunnel_manager.create_tunnel(self, address, uuid, remote_tunnel_id)
+        return self.tunnel_manager.create_tunnel(self, address, uuid, remote_tunnel_id, client_features)

@@ -127,6 +127,11 @@ enum l2tp_ctrl_state {
   STATE_RESOLVING,
 };
 
+enum l2tp_session_features {
+  FEATURE_UNIQUE_SESSION_ID  = 1 << 0,
+  FEATURES_MASK = FEATURE_UNIQUE_SESSION_ID,
+};
+
 typedef struct reliable_message {
   uint16_t seqno;
   uint8_t retries;
@@ -220,7 +225,7 @@ int context_session_set_mtu(l2tp_context *ctx);
 void context_send_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
-int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id);
+int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id, uint32_t server_features);
 void context_free(l2tp_context *ctx);
 void broker_select_one(broker_cfg one_broker);
 void broker_select(broker_cfg *brokers, int broker_cnt);
@@ -602,10 +607,15 @@ void context_process_control_packet(l2tp_context *ctx)
     }
     case CONTROL_TYPE_TUNNEL: {
       if (ctx->state == STATE_GET_TUNNEL) {
-        if (payload_length != 4)
+        if (payload_length < 4)
           break;
 
-        if (context_setup_tunnel(ctx, parse_u32(&buf)) < 0) {
+        uint32_t remote_tunnel_id = parse_u32(&buf);
+        uint32_t server_features = 0;
+        if (payload_length >= 8)
+            server_features = parse_u32(&buf);
+
+        if (context_setup_tunnel(ctx, remote_tunnel_id, server_features) < 0) {
           syslog(LOG_ERR, "Unable to create local L2TP tunnel!");
           // FIXME: is this really a good idea, to go into get cookie?
           ctx->state = STATE_GET_COOKIE;
@@ -835,11 +845,30 @@ void context_send_setup_request(l2tp_context *ctx)
   memcpy(buf, ctx->uuid, uuid_len);
   buf += uuid_len;
 
-  // And the local tunnel identifier at the end.
+  // And the local tunnel identifier.
   put_u32(&buf, ctx->tunnel_id);
+
+  // And finally, our feature flags.
+  put_u32(&buf, FEATURES_MASK);
 
   // Now send the packet.
   context_send_packet(ctx, CONTROL_TYPE_PREPARE, (char*) &buffer, (buf - &buffer[0]));
+}
+
+void context_send_usage_request(l2tp_context *ctx)
+{
+  char buffer[512];
+  char *buf = buffer;
+
+  // First, 8 bytes of padding.
+  memcpy(buf, "UUUUUUUU", 8);
+  buf += 8;
+
+  // Then our feature flags.
+  put_u32(&buf, FEATURES_MASK);
+
+  // Now send the packet.
+  context_send_packet(ctx, CONTROL_TYPE_USAGE, (char*) &buffer, (buf - &buffer[0]));
 }
 
 void context_delete_tunnel(l2tp_context *ctx)
@@ -879,7 +908,7 @@ void context_delete_tunnel(l2tp_context *ctx)
   nl_wait_for_ack(ctx->nl_sock);
 }
 
-int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
+int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id, uint32_t server_features)
 {
   // Create a tunnel.
   struct nl_msg *msg = nlmsg_alloc();
@@ -905,8 +934,13 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id)
     L2TP_CMD_SESSION_CREATE, L2TP_GENL_VERSION);
 
   nla_put_u32(msg, L2TP_ATTR_CONN_ID, ctx->tunnel_id);
-  nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
-  nla_put_u32(msg, L2TP_ATTR_PEER_SESSION_ID, 1);
+  if (server_features & FEATURE_UNIQUE_SESSION_ID) {
+    nla_put_u32(msg, L2TP_ATTR_SESSION_ID, ctx->tunnel_id);
+    nla_put_u32(msg, L2TP_ATTR_PEER_SESSION_ID, peer_tunnel_id);
+  } else {
+    nla_put_u32(msg, L2TP_ATTR_SESSION_ID, 1);
+    nla_put_u32(msg, L2TP_ATTR_PEER_SESSION_ID, 1);
+  }
   nla_put_u16(msg, L2TP_ATTR_PW_TYPE, L2TP_PWTYPE_ETH);
   nla_put_string(msg, L2TP_ATTR_IFNAME, ctx->tunnel_iface);
 
@@ -1058,7 +1092,7 @@ void context_process(l2tp_context *ctx)
       break;
     }
     case STATE_USAGE_SEND: {
-        context_send_packet(ctx, CONTROL_TYPE_USAGE, "UUUUUUUU", 8);
+        context_send_usage_request(ctx);
         ctx->timer_usage = timer_now();
         ctx->state = STATE_USAGE_WAIT;
         break;

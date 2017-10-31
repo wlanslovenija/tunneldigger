@@ -39,6 +39,10 @@ PMTU_PROBE_SIZE_COUNT = len(PMTU_PROBE_SIZES)
 PMTU_PROBE_REPEATS = 4
 PMTU_PROBE_COMBINATIONS = PMTU_PROBE_SIZE_COUNT * PMTU_PROBE_REPEATS
 
+# Session feature flags
+FEATURE_UNIQUE_SESSION_ID = 1 << 0
+FEATURES_MASK = FEATURE_UNIQUE_SESSION_ID
+
 # Logger.
 logger = logging.getLogger("tunneldigger.tunnel")
 
@@ -52,7 +56,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
     A tunnel descriptor.
     """
 
-    def __init__(self, broker, address, endpoint, uuid, tunnel_id, remote_tunnel_id, pmtu_fixed):
+    def __init__(self, broker, address, endpoint, uuid, tunnel_id, remote_tunnel_id, pmtu_fixed, client_features):
         """
         Construct a tunnel.
 
@@ -71,8 +75,12 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.broker = broker
         self.endpoint = endpoint
         self.uuid = uuid
+        self.client_features = client_features
         self.tunnel_id = tunnel_id
         self.remote_tunnel_id = remote_tunnel_id
+        self.session_id = self.tunnel_id if self.client_features & FEATURE_UNIQUE_SESSION_ID else 1
+        self.remote_session_id = self.remote_tunnel_id if self.client_features & FEATURE_UNIQUE_SESSION_ID else 1
+
         self.last_alive = time.time()
         self.created_time = None
         self.keepalive_seqno = 0
@@ -93,14 +101,12 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         return self.broker.tunnel_manager
 
-    def get_session_name(self, session_id):
+    def get_session_name(self):
         """
         Returns the interface name for a tunnel's session.
-
-        :param session_id: Session identifier
         """
 
-        return "l2tp%d%d" % (self.tunnel_id, session_id)
+        return "l2tp%d-%d" % (self.tunnel_id, self.session_id)
 
     def setup_tunnel(self):
         """
@@ -112,7 +118,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.broker.netlink.tunnel_create(self.tunnel_id, self.remote_tunnel_id, self.socket.fileno())
 
             # Create a pseudowire L2TP session over the tunnel.
-            self.broker.netlink.session_create(self.tunnel_id, 1, 1, self.get_session_name(1))
+            self.broker.netlink.session_create(self.tunnel_id, self.session_id, self.remote_session_id, self.get_session_name())
         except l2tp.L2TPTunnelExists:
             self.socket.close()
             raise
@@ -174,7 +180,14 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.created_time = time.time()
 
         # Respond with tunnel establishment message.
-        self.write_message(self.endpoint, protocol.CONTROL_TYPE_TUNNEL, struct.pack('!I', self.tunnel_id))
+        server_features = self.client_features & FEATURES_MASK
+        if server_features:
+            # Tell the client which features we support.
+            msg = struct.pack('!II', self.tunnel_id, server_features)
+        else:
+            # There are no features to speak of.
+            msg = struct.pack('!I', self.tunnel_id)
+        self.write_message(self.endpoint, protocol.CONTROL_TYPE_TUNNEL, msg)
 
         # Spawn keepalive timer.
         self.create_timer(self.keepalive, timeout=random.randrange(3, 15), interval=5)
@@ -190,8 +203,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.broker.hook_manager.run_hook(
             'session.up',
             self.tunnel_id,
-            1,
-            self.get_session_name(1),
+            self.session_id,
+            self.get_session_name(),
             self.tunnel_mtu,
             self.endpoint[0],
             self.endpoint[1],
@@ -240,21 +253,21 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Alter tunnel MTU.
         try:
-            interface_name = (self.get_session_name(1) + '\x00' * 16)[:16]
+            interface_name = (self.get_session_name() + '\x00' * 16)[:16]
             data = struct.pack("16si", interface_name, self.tunnel_mtu)
             fcntl.ioctl(self.socket, SIOCSIFMTU, data)
         except IOError:
             logger.warning("Failed to set MTU for tunnel %d! Is the interface down?" % self.tunnel_id)
 
-        self.broker.netlink.session_modify(self.tunnel_id, 1, self.tunnel_mtu)
+        self.broker.netlink.session_modify(self.tunnel_id, self.session_id, self.tunnel_mtu)
 
         if not initial:
             # Run MTU changed hook.
             self.broker.hook_manager.run_hook(
                 'session.mtu-changed',
                 self.tunnel_id,
-                1,
-                self.get_session_name(1),
+                self.session_id,
+                self.get_session_name(),
                 old_tunnel_mtu,
                 self.tunnel_mtu,
                 self.uuid,
@@ -287,8 +300,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.broker.hook_manager.run_hook(
             'session.pre-down',
             self.tunnel_id,
-            1,
-            self.get_session_name(1),
+            self.session_id,
+            self.get_session_name(),
             self.tunnel_mtu,
             self.endpoint[0],
             self.endpoint[1],
@@ -296,14 +309,14 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.uuid,
         )
 
-        self.broker.netlink.session_delete(self.tunnel_id, 1)
+        self.broker.netlink.session_delete(self.tunnel_id, self.session_id)
 
         # Run down hook.
         self.broker.hook_manager.run_hook(
             'session.down',
             self.tunnel_id,
-            1,
-            self.get_session_name(1),
+            self.session_id,
+            self.get_session_name(),
             self.tunnel_mtu,
             self.endpoint[0],
             self.endpoint[1],
@@ -327,7 +340,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         self.broker.tunnel_manager.destroy_tunnel(self)
 
-    def create_tunnel(self, address, uuid, remote_tunnel_id):
+    def create_tunnel(self, address, uuid, remote_tunnel_id, client_features):
         """
         The tunnel may receive a valid create tunnel message in case our previous
         response has been lost. In this case, we just need to reply with an identical
@@ -344,6 +357,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         if remote_tunnel_id != self.remote_tunnel_id:
             logger.warning("Protocol error: tunnel identifier has changed.")
+            return False
+
+        if client_features != self.client_features:
+            logger.warning("Protocol error: client features have changed.")
             return False
 
         # Respond with tunnel establishment message.
@@ -406,7 +423,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
             if msg_type == protocol.CONTROL_TYPE_LIMIT:
                 # Client requests limit configuration.
-                limit_manager = limits.LimitManager(self, 1)
+                limit_manager = limits.LimitManager(self)
                 limit_manager.configure(msg_data[2:])
                 return True
 

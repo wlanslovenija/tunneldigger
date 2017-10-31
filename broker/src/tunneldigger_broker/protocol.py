@@ -112,23 +112,45 @@ class HandshakeProtocolMixin(object):
             signature = hmac.HMAC(SECRET_KEY, signed_value, hashlib.sha1).digest()[:6]
             self.write_message(address, CONTROL_TYPE_COOKIE, timestamp + signature)
         elif msg_type == CONTROL_TYPE_PREPARE:
+            # Packet format:
+            # 2 bytes protocol time
+            # 6 bytes "cookie", must be the signature we computed above
+            # 1 byte UUID length
+            # N bytes UUID
+            # optionally 4 bytes remote tunnel ID
+            # optionally 4 bytes client feature flags
+
+            offset = 0
+
             # Verify cookie value.
-            timestamp = msg_data[:2]
+            timestamp = msg_data[offset:offset+2]
+            offset += 2
             signed_value = '%s%s%s' % (address[0], address[1], timestamp)
             signature = hmac.HMAC(SECRET_KEY, signed_value, hashlib.sha1).digest()[:6]
             timestamp = struct.unpack('!H', timestamp)[0]
 
-            if signature != msg_data[2:8] or abs(protocol_time() - timestamp) > 2:
+            # Reject message if more than 2 protocol ticks old.  One tick is 1 >> 6 = 64 seconds.
+            if signature != msg_data[offset:offset+6] or abs(protocol_time() - timestamp) > 2:
                 return
+            offset += 6
 
-            uuid_len = struct.unpack('!B', msg_data[8])[0]
-            uuid = msg_data[9:9 + uuid_len]
+            uuid_len = struct.unpack('!B', msg_data[offset])[0]
+            offset += 1
+            uuid = msg_data[offset:offset + uuid_len]
+            offset += uuid_len
+
+            # Parse optional data
+            remote_tunnel_id = 1
+            client_features = 0
             try:
-                remote_tunnel_id = struct.unpack('!I', msg_data[10 + uuid_len:10 + uuid_len + 4])[0]
-            except struct.error:
-                remote_tunnel_id = 1
+                remote_tunnel_id = struct.unpack('!I', msg_data[offset:offset + 4])[0]
+                offset += 4
+                client_features = struct.unpack('!I', msg_data[offset:offset + 4])[0]
+                offset += 4
+            except (struct.error, IndexError):
+                pass
 
-            if not self.create_tunnel(address, uuid, remote_tunnel_id):
+            if not self.create_tunnel(address, uuid, remote_tunnel_id, client_features):
                 logger.warning("Failed to create tunnel (%s) while processing prepare request." % uuid)
                 self.write_message(address, CONTROL_TYPE_ERROR)
 
@@ -136,13 +158,18 @@ class HandshakeProtocolMixin(object):
         elif msg_type == CONTROL_TYPE_USAGE:
             # Packet format:
             # 8 bytes of padding, to make sure the response is no larger than the request.
+            # optionally 4 bytes client feature flags
             if len(msg_data) < 8:
                 return
 
-            tunnel_manager = self.get_tunnel_manager()
+            client_features = 0
+            try:
+                client_features = struct.unpack('!I', msg_data[8:8+4])[0]
+            except (struct.error, IndexError):
+                pass
 
             # Compute tunnel usage information.
-            usage = int((float(len(tunnel_manager.tunnels)) / tunnel_manager.max_tunnels) * 65535)
+            usage = self.get_tunnel_manager().report_usage(client_features)
             usage = struct.pack('!H', usage)
             self.write_message(address, CONTROL_TYPE_USAGE, usage)
         else:
