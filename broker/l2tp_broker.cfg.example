@@ -7,7 +7,9 @@ port=53,123,8942
 interface=lo
 ; Maximum number of tunnels that will be allowed by the broker
 max_tunnels=1024
-; Tunnel port base
+; Tunnel port base. This port is not visible to clients, but must be free on the server.
+; This port is used by the actual l2tp tunnel, but tunneldigger sets up NAT rules so that clients
+; can keep using the control port.
 port_base=20000
 ; Tunnel id base
 tunnel_id_base=100
@@ -27,6 +29,8 @@ verbosity=DEBUG
 log_ip_addresses=false
 
 [hooks]
+; Note that hooks are called asynchonously!
+
 ; Arguments to the session.{up,pre-down,down} hooks are as follows:
 ;
 ;    <tunnel_id> <session_id> <interface> <mtu> <endpoint_ip> <endpoint_port> <local_port>
@@ -39,6 +43,8 @@ log_ip_addresses=false
 ; Called after the tunnel interface goes up
 session.up=
 ; Called just before the tunnel interface goes down
+; (However, due to hooks being asynchonous, the hook may actually execute after the interface was
+; already removed.)
 session.pre-down=
 ; Called after the tunnel interface goes down
 session.down=
