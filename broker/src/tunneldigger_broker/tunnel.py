@@ -33,6 +33,7 @@ IPV4_HDR_OVERHEAD = 28
 L2TP_TUN_OVERHEAD = 54
 
 # PMTU probe sizes.
+PMTU_DEFAULT = 1446
 PMTU_PROBE_SIZES = [1500, 1492, 1476, 1450, 1400, 1334]
 PMTU_PROBE_SIZE_COUNT = len(PMTU_PROBE_SIZES)
 PMTU_PROBE_REPEATS = 4
@@ -51,7 +52,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
     A tunnel descriptor.
     """
 
-    def __init__(self, broker, address, endpoint, uuid, tunnel_id, remote_tunnel_id):
+    def __init__(self, broker, address, endpoint, uuid, tunnel_id, remote_tunnel_id, pmtu_fixed):
         """
         Construct a tunnel.
 
@@ -77,9 +78,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.keepalive_seqno = 0
 
         # Initialize PMTU values.
-        self.tunnel_mtu = 1446
+        self.automatic_pmtu = pmtu_fixed == 0
+        self.tunnel_mtu = PMTU_DEFAULT
         self.remote_tunnel_mtu = None
-        self.measured_pmtu = 1446
+        self.measured_pmtu = PMTU_DEFAULT if self.automatic_pmtu else pmtu_fixed
         self.pmtu_probe_iteration = 0
         self.pmtu_probe_size = None
         self.pmtu_probe_acked_mtu = 0
@@ -178,7 +180,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.create_timer(self.keepalive, timeout=random.randrange(3, 15), interval=5)
         # Spawn PMTU measurement timer. The initial timeout is randomized to avoid all tunnels
         # from starting the measurements at the same time.
-        self.create_timer(self.pmtu_discovery, timeout=random.randrange(1, 30))
+        if self.automatic_pmtu:
+            self.create_timer(self.pmtu_discovery, timeout=random.randrange(1, 30))
 
         # Update MTU.
         self.update_mtu(initial=True)
@@ -200,6 +203,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
         Handle periodic PMTU discovery.
         """
+        assert self.automatic_pmtu
 
         if self.pmtu_probe_size is not None and self.pmtu_probe_size <= self.pmtu_probe_acked_mtu:
             # No need to check lower PMTUs as we already received acknowledgement. Restart
@@ -223,10 +227,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
     def update_mtu(self, initial=False):
         """
-        Updates the tunnel MTU.
+        Updates the tunnel MTU from self.measured_pmtu.
         """
 
-        detected_pmtu = max(1280, min(self.measured_pmtu, self.remote_tunnel_mtu or 1446))
+        detected_pmtu = max(1280, min(self.measured_pmtu, self.remote_tunnel_mtu or PMTU_DEFAULT))
         if not initial and detected_pmtu == self.tunnel_mtu:
             return
 

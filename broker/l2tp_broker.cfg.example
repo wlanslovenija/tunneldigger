@@ -17,6 +17,8 @@ tunnel_id_base=100
 namespace=default
 ; Reject connections if there are less than N seconds since the last connection
 connection_rate_limit=10
+; Set PMTU to a fixed value.  Use 0 for automatic PMTU discovery.
+pmtu=0
 
 [log]
 ; Verbosity

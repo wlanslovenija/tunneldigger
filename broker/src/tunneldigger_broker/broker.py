@@ -18,7 +18,17 @@ class TunnelManager(object):
     Tunnel manager.
     """
 
-    def __init__(self, hook_manager, max_tunnels, tunnel_id_base, tunnel_port_base, namespace, connection_rate_limit, log_ip_addresses):
+    def __init__(
+        self,
+        hook_manager,
+        max_tunnels,
+        tunnel_id_base,
+        tunnel_port_base,
+        namespace,
+        connection_rate_limit,
+        pmtu_fixed,
+        log_ip_addresses,
+    ):
         """
         Constructs a tunnel manager.
 
@@ -38,6 +48,7 @@ class TunnelManager(object):
         self.tunnels = {}
         self.last_tunnel_created = None
         self.connection_rate_limit = connection_rate_limit
+        self.pmtu_fixed = pmtu_fixed
         self.log_ip_addresses = log_ip_addresses
 
     def create_tunnel(self, broker, address, uuid, remote_tunnel_id):
@@ -78,7 +89,8 @@ class TunnelManager(object):
                 address,
                 uuid,
                 tunnel_id,
-                remote_tunnel_id
+                remote_tunnel_id,
+                self.pmtu_fixed,
             )
             tunnel.register(broker.event_loop)
             tunnel.setup_tunnel()
