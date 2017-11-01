@@ -553,7 +553,7 @@ void context_process_control_packet(l2tp_context *ctx)
       if (ctx->state == STATE_USAGE_WAIT) {
         // Broker usage information.
         ctx->usage = parse_u16(&buf);
-        syslog(LOG_DEBUG, "Broker usage: %p %s %u\n", ctx, ctx->broker_hostname, ctx->usage);
+        syslog(LOG_DEBUG, "Broker usage of %s:%s: %u\n", ctx->broker_hostname, ctx->broker_port, ctx->usage);
 
         // Mark the connection as being available for later establishment.
         ctx->standby_available = 1;
