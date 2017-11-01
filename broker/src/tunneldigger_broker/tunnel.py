@@ -379,7 +379,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         elif msg_type == protocol.CONTROL_TYPE_PMTUD_ACK:
             # The other side is acknowledging a specific PMTU value.
             pmtu = struct.unpack('!H', msg_data)[0] + IPV4_HDR_OVERHEAD
-            if pmtu > self.pmtu_probe_acked_mtu:
+            if self.automatic_pmtu and pmtu > self.pmtu_probe_acked_mtu:
                 self.pmtu_probe_acked_mtu = pmtu
                 self.measured_pmtu = pmtu - L2TP_TUN_OVERHEAD
                 self.update_mtu()
@@ -392,7 +392,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             # The other side is notifying us about their tunnel MTU.
             remote_mtu = struct.unpack('!H', msg_data)[0]
 
-            if remote_mtu != self.remote_tunnel_mtu:
+            if self.automatic_pmtu and remote_mtu != self.remote_tunnel_mtu:
                 self.remote_tunnel_mtu = remote_mtu
                 self.update_mtu()
 
