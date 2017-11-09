@@ -39,10 +39,6 @@ PMTU_PROBE_SIZE_COUNT = len(PMTU_PROBE_SIZES)
 PMTU_PROBE_REPEATS = 4
 PMTU_PROBE_COMBINATIONS = PMTU_PROBE_SIZE_COUNT * PMTU_PROBE_REPEATS
 
-# Session feature flags
-FEATURE_UNIQUE_SESSION_ID = 1 << 0
-FEATURES_MASK = FEATURE_UNIQUE_SESSION_ID
-
 # Logger.
 logger = logging.getLogger("tunneldigger.tunnel")
 
@@ -78,8 +74,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.client_features = client_features
         self.tunnel_id = tunnel_id
         self.remote_tunnel_id = remote_tunnel_id
-        self.session_id = self.tunnel_id if self.client_features & FEATURE_UNIQUE_SESSION_ID else 1
-        self.remote_session_id = self.remote_tunnel_id if self.client_features & FEATURE_UNIQUE_SESSION_ID else 1
+        self.session_id = self.tunnel_id if self.client_features & protocol.FEATURE_UNIQUE_SESSION_ID else 1
+        self.remote_session_id = self.remote_tunnel_id if self.client_features & protocol.FEATURE_UNIQUE_SESSION_ID else 1
 
         self.last_alive = time.time()
         self.created_time = None
@@ -180,7 +176,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.created_time = time.time()
 
         # Respond with tunnel establishment message.
-        server_features = self.client_features & FEATURES_MASK
+        server_features = self.client_features & protocol.FEATURES_MASK
         if server_features:
             # Tell the client which features we support.
             msg = struct.pack('!II', self.tunnel_id, server_features)

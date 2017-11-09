@@ -37,6 +37,10 @@ ERROR_REASON_TIMEOUT        = 0x03
 ERROR_REASON_FAILURE        = 0x04 # e.q. on malloc() failure
 ERROR_REASON_UNDEFINED      = 0x05
 
+# Session feature flags
+FEATURE_UNIQUE_SESSION_ID = 1 << 0
+FEATURES_MASK = FEATURE_UNIQUE_SESSION_ID
+
 # Limit types.
 LIMIT_TYPE_BANDWIDTH_DOWN = 0x01
 
@@ -123,14 +127,14 @@ class HandshakeProtocolMixin(object):
             offset = 0
 
             # Verify cookie value.
-            timestamp = msg_data[offset:offset+2]
+            timestamp = msg_data[offset:offset + 2]
             offset += 2
             signed_value = '%s%s%s' % (address[0], address[1], timestamp)
             signature = hmac.HMAC(SECRET_KEY, signed_value, hashlib.sha1).digest()[:6]
             timestamp = struct.unpack('!H', timestamp)[0]
 
             # Reject message if more than 2 protocol ticks old.  One tick is 1 >> 6 = 64 seconds.
-            if signature != msg_data[offset:offset+6] or abs(protocol_time() - timestamp) > 2:
+            if signature != msg_data[offset:offset + 6] or abs(protocol_time() - timestamp) > 2:
                 return
             offset += 6
 
@@ -164,7 +168,7 @@ class HandshakeProtocolMixin(object):
 
             client_features = 0
             try:
-                client_features = struct.unpack('!I', msg_data[8:8+4])[0]
+                client_features = struct.unpack('!I', msg_data[8:8 + 4])[0]
             except (struct.error, IndexError):
                 pass
 

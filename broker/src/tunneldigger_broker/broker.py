@@ -58,7 +58,7 @@ class TunnelManager(object):
 
         :param client_features: Client feature flags
         """
-        return int((float(len(self.tunnels)) / self.max_tunnels) * 65535)
+        return int((float(len(self.tunnels)) / self.max_tunnels) * 0xFFFF)
 
     def create_tunnel(self, broker, address, uuid, remote_tunnel_id, client_features):
         """
