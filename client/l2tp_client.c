@@ -78,11 +78,6 @@
  * 0 means first byte off our payload in l2tp ctrl message */
 #define OFFSET_CONTROL_TYPE 4
 
-#ifdef LIBNL_TINY
-#define nl_handle nl_sock
-#define nl_handle_alloc nl_socket_alloc
-#endif
-
 enum l2tp_ctrl_type {
   // Unreliable messages (0x00 - 0x7F).
   CONTROL_TYPE_COOKIE    = 0x01,
@@ -164,7 +159,7 @@ typedef struct {
   // Cookie.
   char cookie[8];
   // Netlink socket.
-  struct nl_handle *nl_sock;
+  struct nl_sock *nl_sock;
   int nl_family;
   // Sequence number for reliable messages.
   uint16_t reliable_seqno;
@@ -367,7 +362,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
 
   // Setup the netlink socket.
-  ctx->nl_sock = nl_handle_alloc();
+  ctx->nl_sock = nl_socket_alloc();
   if (!ctx->nl_sock) {
     syslog(LOG_ERR, "Failed to allocate a netlink socket!");
     goto free_and_return;
