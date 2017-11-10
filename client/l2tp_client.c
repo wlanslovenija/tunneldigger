@@ -1386,6 +1386,10 @@ int main(int argc, char **argv)
     // Make sure all brokers are in sane state.
     for (i = 0; i < broker_cnt; i++) {
       context_reinitialize(brokers[i].ctx);
+      if (brokers[i].broken && brokers[i].broken + 3600 < timer_now()) {
+        // This one broke more than an hour ago, give it another chance.
+        brokers[i].broken = 0;
+      }
       if (!brokers[i].broken)
         working_brokers += 1;
     }
@@ -1455,7 +1459,7 @@ int main(int argc, char **argv)
     // Initially, we mark this broker as broken.  We will remove this mark after establishing
     // a connection.  We only want to consider a broker as broker if the initial connection fails;
     // disconnecting later (e.g. because the broker got restarted) is fine.
-    brokers[i].broken = 1;
+    brokers[i].broken = timer_now();
 
     // Perform processing on the main context; if the connection fails and does
     // not recover after 30 seconds, restart the broker selection process.
