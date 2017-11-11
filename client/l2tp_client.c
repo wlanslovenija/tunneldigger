@@ -925,6 +925,7 @@ int context_session_set_mtu(l2tp_context *ctx)
   uint16_t mtu = ctx->pmtu - L2TP_TUN_OVERHEAD;
   if (ctx->peer_pmtu > 0 && ctx->peer_pmtu < mtu)
     mtu = ctx->peer_pmtu;
+  syslog(LOG_INFO, "Setting MTU to %d", (int) mtu);
 
   // Update the device MTU.
   struct ifreq ifr;
