@@ -373,8 +373,11 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_OTHER_REQUEST)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
-            # The other side is performing PMTU discovery.
-            self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTUD_ACK, struct.pack('!H', raw_length))
+            # The other side is performing PMTU discovery.  Only cooperate if automatic MTU discovery is
+            # enabled for this network.
+            pmtu_probe = struct.pack('!H', raw_length)
+            if self.automatic_pmtu:
+                self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTUD_ACK, pmtu_probe)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD_ACK:
             # The other side is acknowledging a specific PMTU value.
