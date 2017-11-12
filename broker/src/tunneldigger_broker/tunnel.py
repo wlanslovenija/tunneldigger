@@ -118,6 +118,9 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         except l2tp.L2TPTunnelExists:
             self.socket.close()
             raise
+        except l2tp.L2TPSessionExists:
+            self.socket.close()
+            raise
         except l2tp.NetlinkError:
             self.socket.close()
             raise TunnelSetupFailed

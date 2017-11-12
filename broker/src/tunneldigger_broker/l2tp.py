@@ -2,6 +2,7 @@ import netlink
 import genetlink
 import logging
 import traceback
+import errno
 
 # L2TP generic netlink.
 L2TP_GENL_NAME = "l2tp"
@@ -48,7 +49,14 @@ class L2TPSupportUnavailable(NetlinkError):
 
 
 class L2TPTunnelExists(NetlinkError):
-    pass
+    def __init__(self, tunnel_id):
+        NetlinkError.__init__(self)
+        self.tunnel_id = tunnel_id
+
+class L2TPSessionExists(NetlinkError):
+    def __init__(self, session_id):
+        NetlinkError.__init__(self)
+        self.session_id = session_id
 
 
 class NetlinkInterface(object):
@@ -99,10 +107,10 @@ class NetlinkInterface(object):
         try:
             self.connection.recv()
         except OSError, e:
-            if e.errno == 17:
+            if e.errno == errno.EEXIST:
                 # This tunnel identifier is already in use; make sure to remove it from
                 # our pool of assignable tunnel identifiers.
-                raise L2TPTunnelExists
+                raise L2TPTunnelExists(tunnel_id)
 
             raise NetlinkError
 
@@ -164,7 +172,10 @@ class NetlinkInterface(object):
 
         try:
             self.connection.recv()
-        except OSError:
+        except OSError, e:
+            if e.errno == errno.EEXIST:
+                raise L2TPSessionExists(session_id)
+
             raise NetlinkError
 
     def session_delete(self, tunnel_id, session_id):

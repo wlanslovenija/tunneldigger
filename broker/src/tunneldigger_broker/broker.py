@@ -49,6 +49,7 @@ class TunnelManager(object):
         self.last_tunnel_created = None
         self.connection_rate_limit = connection_rate_limit
         self.pmtu_fixed = pmtu_fixed
+        self.require_unique_session_id = False
         self.log_ip_addresses = log_ip_addresses
 
     def report_usage(self, client_features):
@@ -58,7 +59,14 @@ class TunnelManager(object):
 
         :param client_features: Client feature flags
         """
-        return int((float(len(self.tunnels)) / self.max_tunnels) * 0xFFFF)
+        max_usage = 0xFFFF
+
+        # If we require a unique session ID: report full usage for clients not supporting unique
+        # session IDs.
+        if self.require_unique_session_id and not (client_features & protocol.FEATURE_UNIQUE_SESSION_ID):
+            return max_usage
+
+        return int((float(len(self.tunnels)) / self.max_tunnels) * max_usage)
 
     def create_tunnel(self, broker, address, uuid, remote_tunnel_id, client_features):
         """
@@ -109,9 +117,16 @@ class TunnelManager(object):
             self.last_tunnel_created = now
         except KeyboardInterrupt:
             raise
-        except l2tp.L2TPTunnelExists:
+        except l2tp.L2TPTunnelExists, e:
             # Do not return the tunnel identifier into the pool.
-            logger.warning("Tunnel identifier %d already exists." % tunnel_id)
+            logger.warning("Tunnel identifier %d already exists." % e.tunnel_id)
+            return False
+        except l2tp.L2TPSessionExists, e:
+            # Return tunnel identifier into the pool.
+            self.tunnel_ids.add(tunnel_id)
+            logger.warning("Session identifier %d already exists." % e.session_id)
+            # From now on, demand unique session IDs
+            self.require_unique_session_id = True
             return False
         except:
             # Return tunnel identifier into the pool.
