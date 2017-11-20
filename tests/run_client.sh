@@ -4,4 +4,8 @@
 # but it could also contains additional arguments like '-a'
 
 cd /srv/tunneldigger/client
-exec /srv/tunneldigger/client/l2tp_client -u foobar -i l2tp0 -t 2 $SERVERS -L 102400 -s /testing/hook_client.sh -f $@
+if [ -f CMakeLists.txt ]; then
+	exec /srv/tunneldigger/client/tunneldigger -u foobar -i l2tp0 -t 2 $SERVERS -L 102400 -s /testing/hook_client.sh -f $@
+else
+	exec /srv/tunneldigger/client/l2tp_client -u foobar -i l2tp0 -t 2 $SERVERS -L 102400 -s /testing/hook_client.sh -f $@
+fi

@@ -18,7 +18,15 @@ test_client_compile() {
   # compile test the l2tp client
   echo "Try to compile the l2tp client"
   cd $WORKSPACE/client/
-  if ! make ; then
+  if [ -f CMakeLists.txt ]; then
+    if ! cmake . ; then
+      fail "Failed while preparing the client with cmake"
+    fi
+  else
+    sed -i 's/-lnl/-lnl-3 -lnl-genl-3/g' Makefile
+    sed -i 's#-I.#-I. -I/usr/include/libnl3 -DLIBNL_TINY#g' Makefile
+  fi
+  if ! make VERBOSE=1 ; then
     fail "Failed while compiling the client"
   fi
 }
