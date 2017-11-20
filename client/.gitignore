@@ -1,0 +1,12 @@
+# http://www.gnu.org/software/automake
+Makefile
+.deps
+.dirstamp
+
+# http://www.gnu.org/software/autoconf
+
+/autom4te.cache
+/config.h
+/config.log
+/config.status
+/stamp-h1
