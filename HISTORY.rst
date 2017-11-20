@@ -1,6 +1,8 @@
 vNEXT
 -----
 
+* Added cmake buildsystem to the client
+
 v0.3.0, 2017-Apr-02
 -------------------
 
