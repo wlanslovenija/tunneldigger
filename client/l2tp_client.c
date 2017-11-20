@@ -49,7 +49,11 @@
 #include <linux/genetlink.h>
 #include <linux/l2tp.h>
 
-#include "asyncns.h"
+#ifdef HAVE_LIBASYNCNS
+#include <asyncns.h>
+#else
+#include "libasyncns/asyncns.h"
+#endif
 
 // Maximum number of unacknowledged reliable messages.
 #define MAX_PENDING_MESSAGES 30
