@@ -13,6 +13,11 @@ This will give you a ``tunneldigger`` directory which contains the broker and
 the client in separate directories. Client code can be compiled into a
 stand-alone program.
 
+Requirements
+------------
+
+* linux kernel headers
+
 OpenWrt Package
 ---------------
 
