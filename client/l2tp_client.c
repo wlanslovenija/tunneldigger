@@ -122,7 +122,7 @@ enum l2tp_limit_type {
    When DNS resolving succeeds:
    -> STATE_GET_USAGE (sending a usage and a cookie request every 2s)
    when we receive usage information or a cookie
-   -> STATE_IDLE
+   -> STATE_STANBDY
 
    Now broker selection is performed; for the selected broker the main loop changes the state so
    that we go on:
@@ -144,7 +144,7 @@ enum l2tp_ctrl_state {
   STATE_REINIT,
   STATE_RESOLVING,
   STATE_GET_USAGE,
-  STATE_IDLE,
+  STATE_STANBDY,
   STATE_GET_COOKIE,
   STATE_GET_TUNNEL,
   STATE_KEEPALIVE,
@@ -208,9 +208,6 @@ typedef struct {
   // Tunnel uptime.
   time_t tunnel_up_since;
 
-  // Whether we received usage information from the broker
-  int standby_available;
-
   // PMTU probing.
   int pmtu;
   int peer_pmtu;
@@ -262,7 +259,7 @@ int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
    int i = -1;
    int best = -1;
    for (i = 0; i < broker_cnt; i++) {
-     if (brokers[i].ctx->standby_available &&
+     if (brokers[i].ctx->state == STATE_STANBDY &&
          (best < 0 || brokers[i].ctx->usage < brokers[best].ctx->usage)) {
        best = i;
      }
@@ -276,7 +273,7 @@ int broker_selector_first_available(broker_cfg *brokers, int broker_cnt, int rea
   // Select the first available broker and use it to establish a tunnel.
   int i;
   for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available) {
+    if (brokers[i].ctx->state == STATE_STANBDY) {
       return i;
     }
   }
@@ -289,7 +286,7 @@ int broker_selector_random(broker_cfg *brokers, int broker_cnt, int ready_cnt)
   int i;
   int r = rand() % ready_cnt;
   for (i = 0; i < broker_cnt; i++) {
-    if (brokers[i].ctx->standby_available && (r-- == 0)) {
+    if (brokers[i].ctx->state == STATE_STANBDY && (r-- == 0)) {
       return i;
     }
   }
@@ -450,7 +447,6 @@ int context_reinitialize(l2tp_context *ctx)
   if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
     return -1;
 
-  ctx->standby_available = 0;
   ctx->keepalive_seqno = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
@@ -578,14 +574,14 @@ void context_process_control_packet(l2tp_context *ctx)
   // Check packet type.
   switch (type) {
     case CONTROL_TYPE_USAGE: {
-      if (ctx->state == STATE_GET_USAGE) {
-        // Broker usage information.
+      if (ctx->state == STATE_GET_USAGE || ctx->state == STATE_STANBDY) {
+        // Broker usage information.  We also received this in STATE_STANBY in case we first got
+        // a COOKIE, but later also received a USAGE.
         ctx->usage = parse_u16(&buf);
         syslog(LOG_DEBUG, "Broker usage of %s:%s: %u\n", ctx->broker_hostname, ctx->broker_port, ctx->usage);
 
         // Mark the connection as being available for later establishment.
-        ctx->standby_available = 1;
-        ctx->state = STATE_IDLE;
+        ctx->state = STATE_STANBDY;
       }
       break;
     }
@@ -600,9 +596,9 @@ void context_process_control_packet(l2tp_context *ctx)
             // Proceed building a tunnel.
             ctx->state = STATE_GET_TUNNEL;
         } else {
-            // State STATE_GET_USAGE.  We are ready.  Keep default usage (0xFFFF).
-            ctx->standby_available = 1;
-            ctx->state = STATE_IDLE;
+            // State STATE_GET_USAGE.  We are ready.  Do not touch usage; the default is 0xFFFF and
+            // we may even have also received some usage information.
+            ctx->state = STATE_STANBDY;
         }
       }
       break;
@@ -1138,10 +1134,13 @@ void context_process(l2tp_context *ctx)
       }
     }
     case STATE_GET_USAGE: {
-      if (is_timeout(&ctx->timer_usage, 2)) {
-        // Get usage information.
+      if (ctx->timer_usage == 0) {
+        // The initial request.  We only ask for usage.
         context_send_usage_request(ctx);
-        // Also ask for cookie, to provide compatibility with old brokers.
+        ctx->timer_usage = timer_now();
+      } else if (is_timeout(&ctx->timer_usage, 2)) {
+        // *Not* the initial request.  Also ask for cookie, to provide compatibility with old brokers.
+        context_send_usage_request(ctx);
         context_send_packet(ctx, CONTROL_TYPE_COOKIE, "XXXXXXXX", 8);
       }
       break;
@@ -1234,7 +1233,7 @@ void context_process(l2tp_context *ctx)
       }
       break;
     }
-    case STATE_IDLE:
+    case STATE_STANBDY:
     case STATE_FAILED: {
       break;
     }
@@ -1462,7 +1461,7 @@ int main(int argc, char **argv)
       }
 
       for (i = 0; i < broker_cnt; i++) {
-        ready_cnt += brokers[i].ctx->standby_available ? 1 : 0;
+        ready_cnt += brokers[i].ctx->state == STATE_STANBDY ? 1 : 0;
       }
 
       if (ready_cnt == working_brokers || is_timeout(&timer_collect, 10))
