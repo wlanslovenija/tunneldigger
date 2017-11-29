@@ -24,7 +24,8 @@ script:
 env:
   matrix:
     - SELECT=nose OLD_REV=HEAD
-    - SELECT=nose OLD_REV=c638231efca6b3a6e1c675ac0834a3e851ad1bdc
+    - SELECT=nose OLD_REV=v0.3.0
     - SELECT=nose OLD_REV=4e4f13cdc630c46909d47441093a5bdaffa0d67f
+    - SELECT=nose OLD_REV=c638231efca6b3a6e1c675ac0834a3e851ad1bdc
     - SELECT=usage
     - SELECT=client
