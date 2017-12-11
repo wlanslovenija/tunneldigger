@@ -1504,7 +1504,9 @@ int main(int argc, char **argv)
       }
 
       // If the connection is lost, we start the reconnection timer.
-      // Hitting this code path should not be possible, but lets play safe.
+      // Hitting this code path should not be possible:  Once we are in STATE_KEEPALIVE
+      // (which is a prerequisite for ever having `timer_establish < 0`),
+      // the only possible transition is to STATE_FAILED.  But let's play safe.
       if (timer_establish < 0 && main_context->state != STATE_KEEPALIVE) {
         timer_establish = timer_now();
       }
