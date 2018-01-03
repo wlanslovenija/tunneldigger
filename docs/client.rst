@@ -13,6 +13,28 @@ This will give you a ``tunneldigger`` directory which contains the broker and
 the client in separate directories. Client code can be compiled into a
 stand-alone program.
 
+In order to compile client code following packages are required on Ubuntu/Debian::
+
+    build-essential pkg-config cmake libnl-genl-3-dev libnl-3-dev libasyncns-dev
+    
+Root permission are needed for package installation and Tunneldigger client installation.
+
+Installation
+------------
+
+If we assume that you are currently in ``/tunneldigger/client`` folder you can do::
+
+    cmake -G "Unix Makefiles"
+    
+After configuration has been succesfully built you can simply::
+
+    make
+    
+After code has been compiled in order to install simply::
+
+    sudo make install
+    
+
 OpenWrt Package
 ---------------
 
