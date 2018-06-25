@@ -17,7 +17,8 @@ tunnel_id_base=100
 ; configure disjunct ports, and tunnel identifiers in order for
 ; namespacing to work
 namespace=default
-; Reject connections if there are less than N seconds since the last connection
+; Reject connections if there are less than N seconds since the last connection.
+; Can be less than a second (e.g., 0.1).
 connection_rate_limit=10
 ; Set PMTU to a fixed value.  Use 0 for automatic PMTU discovery.  A non-0 value also disables
 ; PMTU discovery on the client side, by having the server not respond to client-side PMTU
