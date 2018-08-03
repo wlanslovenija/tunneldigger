@@ -1,0 +1,20 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ 
+
+override_dh_auto_configure:
+	cp "$(CURDIR)/files/Makefile" "$(CURDIR)/client/Makefile"
+	mkdir -p "$(CURDIR)/etc/init.d"
+	cp "$(CURDIR)/files/tunneldigger.conf" "$(CURDIR)/etc/"
+	cp "$(CURDIR)/files/tunneldigger" "$(CURDIR)/etc/init.d/"
+
+override_dh_auto_build:
+	make -C "$(CURDIR)/client/"
+	mkdir -p "$(CURDIR)/usr/sbin/"
+	mv "$(CURDIR)/client/l2tp_client" "$(CURDIR)/usr/sbin/tunneldigger"
+
+override_dh_auto_clean:
+	rm -fr "$(CURDIR)/etc"
+	rm -fr "$(CURDIR)/usr"
+

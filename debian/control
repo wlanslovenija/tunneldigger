@@ -1,0 +1,12 @@
+Source: tunneldigger
+Section: web
+Priority: optional
+Maintainer: Jaka Kranjc <deb@breskev.com>
+Build-Depends: debhelper (>= 8.0.0), git, libc6-dev, libnl-genl-3-dev
+Standards-Version: 3.9.2
+Homepage: https://github.com/wlanslovenija/tunneldigger/
+
+Package: tunneldigger
+Architecture: amd64
+Depends: libc6, libnl-genl-3-200
+Description: A simple VPN client based on L2TPv3 kernel driver

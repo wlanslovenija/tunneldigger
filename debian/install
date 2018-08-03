@@ -1,0 +1,3 @@
+/usr/sbin/*
+/etc/tunneldigger.conf
+/etc/init.d/tunneldigger
