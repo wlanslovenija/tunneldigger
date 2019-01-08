@@ -209,6 +209,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.endpoint[1],
             self.address[1],
             self.uuid,
+            self.broker.address[1],
         )
 
     def pmtu_discovery(self):
@@ -306,6 +307,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.endpoint[1],
             self.address[1],
             self.uuid,
+            self.broker.address[1],
         )
 
         self.broker.netlink.session_delete(self.tunnel_id, self.session_id)
@@ -321,6 +323,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.endpoint[1],
             self.address[1],
             self.uuid,
+            self.broker.address[1],
         )
 
         # Transmit error message so the other end can tear down the tunnel
