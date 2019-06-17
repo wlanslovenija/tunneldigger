@@ -45,6 +45,8 @@ tunnels. The following modules are required for Tunneldigger operation:
 In addition the kernel must support network address translation via netfilter,
 otherwise the tunnels will not work as Tunneldigger uses translation to achieve
 that all tunnels operate over the same external port.
+If you have a Linux kernel of version 2.4.x or later, this is included.
+You can still check with the command ``sudo iptables --version``.
 
 Also, if you want to have working bandwidth limits, the kernel must support traffic
 shaping and the HTB queuing discipline, together with ``fq_codel``.
