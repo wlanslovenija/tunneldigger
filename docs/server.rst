@@ -44,6 +44,26 @@ The following modules are required for Tunneldigger operation:
 * ``l2tp_eth``
 * ``l2tp_netlink``
 
+You can find out if these modules are loaded by running ``lsmod | grep l2tp``.
+If you get no output, they need to be activated.
+
+.. code:: shell
+
+    $ sudo modprobe l2tp_core
+    $ sudo modprobe l2tp_eth
+    $ sudo modprobe l2tp_netlink
+
+Then, your listing of the modules can look like this:
+
+.. code:: shell
+
+    $ lsmod | grep l2tp
+    l2tp_eth               16384  0 
+    l2tp_netlink           24576  1 l2tp_eth
+    l2tp_core              32768  2 l2tp_eth,l2tp_netlink
+    ip6_udp_tunnel         16384  1 l2tp_core
+    udp_tunnel             16384  1 l2tp_core
+
 In addition the kernel must support network address translation via netfilter,
 otherwise the tunnels will not work as Tunneldigger uses translation to achieve
 that all tunnels operate over the same external port.
