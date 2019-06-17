@@ -1431,21 +1431,12 @@ int main(int argc, char **argv)
 
     // Reset availability information and standby setting.
     for (i = 0; i < broker_cnt; i++) {
-      // Re-enable all brokers if they are all broken
-      if (working_brokers == 0) {
-        brokers[i].broken = 0;
-      }
       if (brokers[i].broken) {
         // Inhibit hostname resolution and connect process.
         syslog(LOG_INFO, "Not trying %s:%s again as it broke last time we tried.",
           brokers[i].address, brokers[i].port);
         brokers[i].ctx->state = STATE_FAILED;
       }
-    }
-    // Adapt working_brokers, needs updating if we re-enabled brokers
-    if (working_brokers == 0) {
-      syslog(LOG_INFO, "All brokers sent us an error, trying them all again.");
-      working_brokers = broker_cnt;
     }
 
     // Perform broker processing for 10 seconds or until all brokers are ready
@@ -1476,6 +1467,11 @@ int main(int argc, char **argv)
     if (i == -1) {
       syslog(LOG_ERR, "No suitable brokers found. Retrying in 5 seconds");
       sleep(5);
+      // Un-break all brokers.  There is no point in avoiding bad brokers if that means
+      // we have no candidates left.
+      for (i = 0; i < broker_cnt; i++) {
+        brokers[i].broken = 0;
+      }
       continue;
     }
 
