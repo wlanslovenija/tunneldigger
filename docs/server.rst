@@ -52,6 +52,9 @@ shaping and the HTB queuing discipline, together with ``fq_codel``.
 The system should be configured to load these modules at boot which is usually done
 by listing the modules in ``/etc/modules``.
 
+System Packages
+~~~~~~~~~~~~~~~
+
 Also the following Debian packages are required:
 
 * ``iproute``
