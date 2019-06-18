@@ -46,6 +46,17 @@ The following modules are required for Tunneldigger operation:
 
 You can find out if these modules are loaded by running ``lsmod | grep l2tp``.
 If you get no output, they need to be activated.
+For the activation of the kernel modules, we recommend adding a file
+``/etc/modules-load.d/tunneldigger.conf`` with the following content:
+
+.. code:: shell
+
+    l2tp_core
+    l2tp_eth
+    l2tp_netlink
+
+You can also activate the modules using modprobe.
+A restart will load the kernel without them if you do not create the file.
 
 .. code:: shell
 
