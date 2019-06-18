@@ -184,3 +184,45 @@ After you configured Tunneldigger, you can run the broker::
 
     cd /srv/tunneldigger
     /srv/env_tunneldigger/bin/python -m tunneldigger_broker.main /srv/tunneldigger/broker/l2tp_broker.cfg
+
+Docker Image
+------------
+
+There is a docker image available from `wlanslovenija/tunneldigger-broker
+<https://hub.docker.com/r/wlanslovenija/tunneldigger-broker>`_.
+You can run it when you installed docker.
+
+.. code:: shell
+
+    docker run -e address=127.0.0.1 -e port=53,123,8942 \
+               -e interface=lo      -e max_tunnels=1024 \
+               -e port_base=20000   -e tunnel_id_base=100 \
+               -e namespace=default -e connection_rate_limit=10 \
+               -e pmtu=0            -e verbosity=DEBUG \
+               -e log_ip_addresses=false
+               -it wlanslovenija/tunneldigger-broker
+
+Instead of configuring the environment variables one by one
+using the ``-e`` option, you can also use the ``--env-file``
+option.
+
+OLSRD
+~~~~~
+
+The version of OLSRD in this docker file is ``0.9.0.3`` for
+`compatibility with the Berlin Backbone VPN
+<https://github.com/freifunk-berlin/firmware/blob/c53e422d2edc14e4a1ea72f1e46c81410a1a3fbd/CHANGELOG.md#overall-system-2>`__
+
+
+Build
+~~~~~
+
+You can build the docker image yourself.
+
+.. code:: shell
+
+    cd broker
+    docker build --tag wlanslovenija/tunneldigger-broker .
+
+
+

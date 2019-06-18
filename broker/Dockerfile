@@ -1,0 +1,42 @@
+FROM ubuntu
+
+#
+# Installation as described in the server documentation
+# https://tunneldigger.readthedocs.io/en/latest/server.html
+#
+# Using the recommended apt practices.
+# https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
+#
+RUN apt-get update && \
+    apt-get install -y \
+        iproute bridge-utils libnetfilter-conntrack-dev \
+        libnfnetlink-dev libffi-dev python-dev libevent-dev \
+        ebtables python-virtualenv wget && \
+    mkdir -p /srv/tunneldigger/tunneldigger/broker && \
+    cd /srv/tunneldigger && \
+    virtualenv env_tunneldigger
+#
+# Install OLSRD
+# https://github.com/OLSR/olsrd/
+#
+RUN apt-get -y install bison flex && \
+    mkdir -p /srv/olsrd && \
+    cd /srv/olsrd && \
+    wget -O- https://github.com/OLSR/olsrd/archive/v0.9.0.3.tar.gz \
+        | tar zxf - && \
+    cd * && \
+    make build_all && \
+    make install_all
+    
+#
+# Install Tunneldigger
+#
+#
+COPY . /srv/tunneldigger/tunneldigger/broker
+RUN cd /srv/tunneldigger/tunneldigger/broker && \
+    . /srv/tunneldigger/env_tunneldigger/bin/activate && \
+    python setup.py install
+
+CMD docker/start.sh
+
+
