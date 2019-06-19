@@ -54,3 +54,9 @@ Indices and Tables
 
 * :ref:`genindex`
 * :ref:`search`
+
+Related Work
+============
+
+* `German Tunneldigger Tutorial by Freifunk Franken <https://wiki.freifunk-franken.de/w/L2TP_und_Tunneldigger>`__
+
