@@ -69,7 +69,7 @@ Manual Activation of the Kernel Modules
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 You can also activate the modules using ``modprobe``.
-A restart will load the kernel without them if you do not create the file.
+A system restart will *not* load the modules again if you do not create the file as described above.
 
 .. code:: shell
 
