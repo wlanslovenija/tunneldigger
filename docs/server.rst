@@ -73,7 +73,7 @@ A restart will load the kernel without them if you do not create the file.
     $ sudo modprobe l2tp_eth
     $ sudo modprobe l2tp_netlink
 
-Then, your listing of the modules can look like this:
+If the modules were loaded successfully, your listing of the modules might look like this:
 
 .. code:: shell
 
