@@ -84,10 +84,6 @@ If the modules were loaded successfully, your listing of the modules might look 
     ip6_udp_tunnel         16384  1 l2tp_core
     udp_tunnel             16384  1 l2tp_core
 
-In addition the kernel must support network address translation via netfilter,
-otherwise the tunnels will not work as Tunneldigger uses translation to achieve
-that all tunnels operate over the same external port.
-
 Also, if you want to have working bandwidth limits, the kernel must support traffic
 shaping and the HTB queuing discipline, together with ``fq_codel``.
 
