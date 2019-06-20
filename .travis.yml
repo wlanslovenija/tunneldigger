@@ -7,6 +7,7 @@ python:
 sudo: required
 dist: trusty
 install:
+  - git fetch --unshallow # travis only does a shallow clone which contains only the last 50 commits
   - git checkout $TRAVIS_COMMIT # make sure that's where we are -- sometimes we end up on a different commit with equivalent content
   - sudo add-apt-repository universe
   - sudo apt-get -qq update
