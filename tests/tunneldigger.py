@@ -12,8 +12,6 @@ import signal
 import sys
 from threading import Timer
 
-GIT_URL = "https://github.com/wlanslovenija/tunneldigger"
-
 LOG = logging.getLogger("test.tunneldigger")
 
 def setup_template():
@@ -96,6 +94,7 @@ def configure_mounts(container):
     # mount testing dir
     local_path = os.path.dirname(os.path.realpath(__file__))
     git_repo = local_path + '/../.git'
+    LOG.info("Git repo is at {}".format(git_repo))
 
     # TODO: this mount is very dirty and may be DANGEROUS!!! Unescaped.
     # mount this directory to /testing

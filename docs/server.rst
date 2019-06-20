@@ -133,7 +133,8 @@ There are currently four different hooks, namely:
   the higher layers (example of such a script is found under ``scripts/setup_interface.sh``)
 
 * ``session.pre-down`` is called just before the tunnel interface is going to be removed by the broker (example is
-  found under ``scripts/teardown_interface.sh``)
+  found under ``scripts/teardown_interface.sh``).  Notice that hooks are executed asynchonously, so by the time
+  this script runs, the interface may already be gone.
 
 * ``session.down`` is called after the tunnel interface has been destroyed and is no longer available (we currently
   do not use this hook)
