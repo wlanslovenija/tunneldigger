@@ -32,8 +32,8 @@ the broker.
 
 .. _history: https://github.com/wlanslovenija/tunneldigger/blob/master/HISTORY.rst
 
-Prerequisites
--------------
+Operating System
+----------------
 
 The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
 tunnels. You can find out your linux kernel version using the command ``uname -a``.
@@ -45,7 +45,7 @@ These distributions are supported:
 * *add your distribution*
 
 Kernel Modules
-~~~~~~~~~~~~~~
+--------------
 
 The following modules are required for Tunneldigger operation:
 
@@ -53,8 +53,9 @@ The following modules are required for Tunneldigger operation:
 * ``l2tp_eth``
 * ``l2tp_netlink``
 
-You can find out if these modules are loaded by running ``lsmod | grep l2tp``.
-If you get no output, they need to be activated.
+Kernel Module Activation on Boot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 For the activation of the kernel modules, we recommend adding a file
 ``/etc/modules-load.d/tunneldigger.conf`` with the following content:
 
@@ -64,7 +65,10 @@ For the activation of the kernel modules, we recommend adding a file
     l2tp_eth
     l2tp_netlink
 
-You can also activate the modules using modprobe.
+Manual Activation of the Kernel Modules
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can also activate the modules using ``modprobe``.
 A restart will load the kernel without them if you do not create the file.
 
 .. code:: shell
@@ -73,7 +77,13 @@ A restart will load the kernel without them if you do not create the file.
     $ sudo modprobe l2tp_eth
     $ sudo modprobe l2tp_netlink
 
-If the modules were loaded successfully, your listing of the modules might look like this:
+Check if Modules are Loaded
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can find out if these modules are loaded by running ``lsmod | grep l2tp``.
+If you get no output, they are not activated.
+If the modules were loaded successfully,
+your listing of the modules might look like this:
 
 .. code:: shell
 
@@ -84,11 +94,17 @@ If the modules were loaded successfully, your listing of the modules might look 
     ip6_udp_tunnel         16384  1 l2tp_core
     udp_tunnel             16384  1 l2tp_core
 
+Additional Notes About Kernel Modules
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
 Also, if you want to have working bandwidth limits, the kernel must support traffic
 shaping and the HTB queuing discipline, together with ``fq_codel``.
 
 The system should be configured to load these modules at boot which is usually done
 by listing the modules in ``/etc/modules``.
+
+System Packages
+---------------
 
 Also the following Debian packages are required:
 
