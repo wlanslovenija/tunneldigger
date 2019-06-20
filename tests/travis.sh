@@ -11,9 +11,6 @@ export WORKSPACE=$PWD
 export PATH=/usr/bin/:/usr/sbin:/usr/local/bin:/usr/local/sbin:/bin:/sbin
 unset VIRTUAL_ENV
 
-# travis only do a shallow clone which contains only the last 50 commits
-git fetch --unshallow
-
 # retrieve git rev
 NEW_REV=$TRAVIS_COMMIT
 
