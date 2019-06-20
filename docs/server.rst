@@ -36,7 +36,9 @@ Prerequisites
 -------------
 
 The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
-tunnels. The following modules are required for Tunneldigger operation:
+tunnels. You can find out your linux kernel version using the command ``uname -a``.
+
+The following modules are required for Tunneldigger operation:
 
 * ``l2tp_core``
 * ``l2tp_eth``
