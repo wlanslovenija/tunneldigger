@@ -38,7 +38,8 @@ Operating System
 The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
 tunnels. You can find out your linux kernel version using the command ``uname -a``.
 
-These distributions are supported:
+We assume the following instructions to work on the distributions listed below.
+You are welcome to add your distribution if the instructions work and to edit them.
 
 * Debian
 * Fedora with the package ``kernel-modules-extra``
