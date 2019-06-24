@@ -95,15 +95,6 @@ your listing of the modules might look like this:
     ip6_udp_tunnel         16384  1 l2tp_core
     udp_tunnel             16384  1 l2tp_core
 
-Additional Notes About Kernel Modules
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Also, if you want to have working bandwidth limits, the kernel must support traffic
-shaping and the HTB queuing discipline, together with ``fq_codel``.
-
-The system should be configured to load these modules at boot which is usually done
-by listing the modules in ``/etc/modules``.
-
 System Packages
 ---------------
 
