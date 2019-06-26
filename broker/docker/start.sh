@@ -62,5 +62,16 @@ session.down=
 session.mtu-changed=/srv/tunneldigger/tunneldigger/broker/scripts/mtu_changed.sh
 EOF > /srv/tunneldigger/broker/l2tp_broker.cfg
 
+# activate modules
+modprobe l2tp_netlink
+modprobe l2tp_ip
+modprobe l2tp_eth
+modprobe nf_conntrack
+modprobe nf_conntrack_netlink
+
+# allow forwarding
+iptables -t nat -L
+iptables -t filter -P FORWARD ACCEPT
+
 /srv/env_tunneldigger/bin/python -m tunneldigger_broker.main /srv/tunneldigger/broker/l2tp_broker.cfg
 
