@@ -9,7 +9,7 @@ FROM ubuntu
 #
 RUN apt-get update && \
     apt-get install -y \
-        iproute bridge-utils libnetfilter-conntrack-dev \
+        iproute2 bridge-utils libnetfilter-conntrack-dev \
         libnfnetlink-dev libffi-dev python-dev libevent-dev \
         ebtables python-virtualenv wget && \
     mkdir -p /srv/tunneldigger/tunneldigger/broker && \
