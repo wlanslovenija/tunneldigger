@@ -15,18 +15,6 @@ RUN apt-get update && \
     mkdir -p /srv/tunneldigger/tunneldigger/broker && \
     cd /srv/tunneldigger && \
     virtualenv env_tunneldigger
-#
-# Install OLSRD
-# https://github.com/OLSR/olsrd/
-#
-RUN apt-get -y install bison flex && \
-    mkdir -p /srv/olsrd && \
-    cd /srv/olsrd && \
-    wget -O- https://github.com/OLSR/olsrd/archive/v0.9.0.3.tar.gz \
-        | tar zxf - && \
-    cd * && \
-    make build_all && \
-    make install_all
     
 #
 # Install Tunneldigger
