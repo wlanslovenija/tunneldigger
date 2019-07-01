@@ -194,6 +194,13 @@ You can run it when you installed docker.
 
 .. code:: shell
 
+    docker run --rm -it wlanslovenija/tunneldigger-broker
+
+You can configure the different values in the config file using
+environment variables as shown here:
+
+.. code:: shell
+
     docker run -e address=127.0.0.1 -e port=53,123,8942 \
                -e interface=lo      -e max_tunnels=1024 \
                -e port_base=20000   -e tunnel_id_base=100 \
