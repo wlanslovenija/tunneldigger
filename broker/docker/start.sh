@@ -4,35 +4,58 @@ set -e
 
 cd /srv/tunneldigger
 
-# activate modules
-modprobe l2tp_netlink
-modprobe l2tp_ip
-modprobe l2tp_eth
-modprobe nf_conntrack
-modprobe nf_conntrack_netlink
+#
+# Check mode, see
+# https://github.com/hwdsl2/docker-ipsec-vpn-server/blob/f254eacd6e081020939b568541c7c3a50663d475/run.sh#L37
+#
+if ip link add dummy0 type dummy 2>&1 | grep -q "not permitted"; then
+  cat 1>&2 <<'  EOF'
+  Error: This Docker image must be run in privileged mode.
+  For detailed instructions, please visit:
+  https://tunneldigger.readthedocs.io/en/latest/server.html
+  EOF
+  exit 1
+fi
+ip link delete dummy0 >/dev/null 2>&1
 
+#
+# activate modules
+#
+
+#modprobe l2tp_netlink
+#modprobe l2tp_ip
+#modprobe l2tp_eth
+#modprobe nf_conntrack
+#modprobe nf_conntrack_netlink
+
+#
 # allow forwarding
+#
 iptables -t nat -L
 iptables -t filter -P FORWARD ACCEPT
 
+#
 # configure bridge, see
 # https://github.com/wlanslovenija/tunneldigger/blob/master/tests/prepare_server.sh
+#
 brctl addbr br0
 ip a a 192.168.254.1/24 dev br0
 ip l s br0 up
 # listening ip
-IP=$(ip -4 -o a s dev eth1  | awk '{ print $4 }' | awk -F/ '{print $1}')
+IP=$(ip -4 -o a s dev eth0  | awk '{ print $4 }' | awk -F/ '{print $1}')
 
+#
 # create configuration file, see
 # https://github.com/wlanslovenija/tunneldigger/blob/master/broker/l2tp_broker.cfg.example
-cat << EOF
+#
+cat > /srv/tunneldigger/tunneldigger/broker/l2tp_broker.cfg <<EOS
 [broker]
 ; IP address the broker will listen and accept tunnels on
 address=${address:-$IP}
 ; Ports where the broker will listen on
 port=${port:-53,123,8942}
 ; Interface with that IP address
-interface=${interface:-eth1}
+interface=${interface:-eth0}
 ; Maximum number of tunnels that will be allowed by the broker
 max_tunnels=${max_tunnels:-1024}
 ; Tunnel port base. This port is not visible to clients, but must be free on the server.
@@ -81,7 +104,10 @@ session.pre-down=/srv/tunneldigger/tunneldigger/broker/scripts/teardown_interfac
 session.down=
 ; Called after the tunnel MTU gets changed because of PMTU discovery
 session.mtu-changed=/srv/tunneldigger/tunneldigger/broker/scripts/mtu_changed.sh
-EOF > /srv/tunneldigger/broker/l2tp_broker.cfg
+EOS
 
-/srv/env_tunneldigger/bin/python -m tunneldigger_broker.main /srv/tunneldigger/broker/l2tp_broker.cfg
+#
+# Start the service
+#
+/srv/tunneldigger/env_tunneldigger/bin/python -m tunneldigger_broker.main /srv/tunneldigger/tunneldigger/broker/l2tp_broker.cfg
 
