@@ -194,7 +194,7 @@ You can run it when you installed docker.
 
 .. code:: shell
 
-    docker run --rm -it wlanslovenija/tunneldigger-broker
+    docker run --rm -it --privileged wlanslovenija/tunneldigger-broker
 
 You can configure the different values in the config file using
 environment variables as shown here:
@@ -206,7 +206,7 @@ environment variables as shown here:
                -e port_base=20000   -e tunnel_id_base=100 \
                -e namespace=default -e connection_rate_limit=10 \
                -e pmtu=0            -e verbosity=DEBUG \
-               -e log_ip_addresses=false
+               -e log_ip_addresses=false --privileged \
                -it wlanslovenija/tunneldigger-broker
 
 Instead of configuring the environment variables one by one
