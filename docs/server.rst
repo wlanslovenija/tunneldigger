@@ -213,14 +213,6 @@ Instead of configuring the environment variables one by one
 using the ``-e`` option, you can also use the ``--env-file``
 option.
 
-OLSRD
-~~~~~
-
-The version of OLSRD in this docker file is ``0.9.0.3`` for
-`compatibility with the Berlin Backbone VPN
-<https://github.com/freifunk-berlin/firmware/blob/c53e422d2edc14e4a1ea72f1e46c81410a1a3fbd/CHANGELOG.md#overall-system-2>`__
-
-
 Build
 ~~~~~
 
