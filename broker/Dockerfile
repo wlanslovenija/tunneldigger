@@ -26,7 +26,7 @@ RUN apt-get update && \
     cd /srv/tunneldigger/tunneldigger/broker && \
     . /srv/tunneldigger/env_tunneldigger/bin/activate && \
     python setup.py install && \
-    apt-get -y remove gcc && \
+    apt-get -y purge gcc && \
     apt-get -y autoremove
 
 #
