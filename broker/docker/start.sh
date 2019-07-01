@@ -15,6 +15,14 @@ modprobe nf_conntrack_netlink
 iptables -t nat -L
 iptables -t filter -P FORWARD ACCEPT
 
+# configure bridge, see
+# https://github.com/wlanslovenija/tunneldigger/blob/master/tests/prepare_server.sh
+brctl addbr br0
+ip a a 192.168.254.1/24 dev br0
+ip l s br0 up
+# listening ip
+IP=$(ip -4 -o a s dev eth1  | awk '{ print $4 }' | awk -F/ '{print $1}')
+
 # create configuration file, see
 # https://github.com/wlanslovenija/tunneldigger/blob/master/broker/l2tp_broker.cfg.example
 cat << EOF
