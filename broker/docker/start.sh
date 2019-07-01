@@ -2,7 +2,7 @@
 
 set -e
 
-cd /srv/tunneldigger
+cd /srv/tunneldigger/tunneldigger/broker
 
 #
 # Check mode, see
