@@ -191,6 +191,10 @@ Docker Image
 There is a docker image available from `wlanslovenija/tunneldigger-broker
 <https://hub.docker.com/r/wlanslovenija/tunneldigger-broker>`_.
 You can run it when you installed docker.
+Also, you need to install all the kernel modules mentioned at the start
+of the document because docker images share the kernel of the host system,
+including the modules ``ebtables`` and ``sch_netem``
+and activate these kernel modules.
 
 .. code:: shell
 
