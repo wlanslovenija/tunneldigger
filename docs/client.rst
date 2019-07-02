@@ -82,7 +82,7 @@ You can run it when you installed docker.
 
 .. code:: shell
 
-    docker run --rm -it wlanslovenija/tunneldigger-client -b <IP>:<PORT>
+    docker run --rm -it --privileged wlanslovenija/tunneldigger-client -b <IP>:<PORT>
 
 Replace ``<IP>`` and ``<PORT>`` with the ip and port the server uses.
 
