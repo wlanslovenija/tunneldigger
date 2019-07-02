@@ -44,6 +44,13 @@ ip l s br0 up
 # listening ip
 IP=$(ip -4 -o a s dev eth0  | awk '{ print $4 }' | awk -F/ '{print $1}')
 
+
+#
+# Create mesh routing table, see
+# https://tunneldigger.readthedocs.io/en/latest/server.html
+#
+echo "100     mesh" >> /etc/iproute2/rt_tables
+
 #
 # create configuration file, see
 # https://github.com/wlanslovenija/tunneldigger/blob/master/broker/l2tp_broker.cfg.example
