@@ -84,7 +84,7 @@ You can run it when you installed docker.
 
     docker run --rm -it --privileged wlanslovenija/tunneldigger-client -b <IP>:<PORT>
 
-Replace ``<IP>`` and ``<PORT>`` with the ip and port the server uses.
+Replace ``<IP>`` and ``<PORT>`` with the ip and port the broker uses.
 
 Building the Docker Image
 ~~~~~~~~~~~~~~~~~~~~~~~~~
