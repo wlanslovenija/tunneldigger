@@ -20,13 +20,13 @@ RUN apt-get update && \
     apt-get install -y \
         iproute2 bridge-utils libnetfilter-conntrack-dev \
         libnfnetlink-dev libffi-dev python-dev libevent-dev \
-        ebtables python-virtualenv wget gcc && \
+        ebtables python-virtualenv wget gcc python && \
     cd /srv/tunneldigger && \
     virtualenv env_tunneldigger && \
     cd /srv/tunneldigger/tunneldigger/broker && \
     . /srv/tunneldigger/env_tunneldigger/bin/activate && \
     python setup.py install && \
-    apt-get -y purge gcc && \
+    apt-get -y purge gcc python-dev wget && \
     apt-get -y autoremove
 
 #
