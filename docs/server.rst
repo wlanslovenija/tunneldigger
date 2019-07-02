@@ -113,6 +113,9 @@ interfaces, you also need the following packages:
 
 * ``ebtables``
 
+Since ``ebtables`` is also a kernel module, please activate it as described
+in the `Kernel Modules`_ Section.
+
 Note that the best way to run any Python software is in a virtual environment
 (virtualenv_), so the versions you have installed on your base system should
 not affect the versions that are installed for Tunneldigger.
