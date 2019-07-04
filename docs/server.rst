@@ -32,11 +32,21 @@ the broker.
 
 .. _history: https://github.com/wlanslovenija/tunneldigger/blob/master/HISTORY.rst
 
-Prerequisites
--------------
+Operating System
+----------------
 
 The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
 tunnels. You can find out your linux kernel version using the command ``uname -a``.
+
+We assume the following instructions to work on the distributions listed below.
+You are welcome to add your distribution if the instructions work and to edit them to make them work.
+
+* Debian
+* Fedora with the package ``kernel-modules-extra``
+* *add your distribution*
+
+Kernel Modules
+--------------
 
 The following modules are required for Tunneldigger operation:
 
@@ -44,15 +54,49 @@ The following modules are required for Tunneldigger operation:
 * ``l2tp_eth``
 * ``l2tp_netlink``
 
-In addition the kernel must support network address translation via netfilter,
-otherwise the tunnels will not work as Tunneldigger uses translation to achieve
-that all tunnels operate over the same external port.
+Kernel Module Activation on Boot
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Also, if you want to have working bandwidth limits, the kernel must support traffic
-shaping and the HTB queuing discipline, together with ``fq_codel``.
+For the activation of the kernel modules, we recommend adding a file
+``/etc/modules-load.d/tunneldigger.conf`` with the following content:
 
-The system should be configured to load these modules at boot which is usually done
-by listing the modules in ``/etc/modules``.
+.. code:: shell
+
+    l2tp_core
+    l2tp_eth
+    l2tp_netlink
+
+Manual Activation of the Kernel Modules
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can also activate the modules using ``modprobe``.
+A system restart will *not* load the modules again if you do not create the file as described above.
+
+.. code:: shell
+
+    $ sudo modprobe l2tp_core
+    $ sudo modprobe l2tp_eth
+    $ sudo modprobe l2tp_netlink
+
+Check if Modules are Loaded
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can find out if these modules are loaded by running ``lsmod | grep l2tp``.
+If you get no output, they are not activated.
+If the modules were loaded successfully,
+your listing of the modules might look like this:
+
+.. code:: shell
+
+    $ lsmod | grep l2tp
+    l2tp_eth               16384  0 
+    l2tp_netlink           24576  1 l2tp_eth
+    l2tp_core              32768  2 l2tp_eth,l2tp_netlink
+    ip6_udp_tunnel         16384  1 l2tp_core
+    udp_tunnel             16384  1 l2tp_core
+
+System Packages
+---------------
 
 Also the following Debian packages are required:
 
