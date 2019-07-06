@@ -20,7 +20,7 @@ RUN apt-get update && \
     apt-get install -y \
         iproute2 bridge-utils libnetfilter-conntrack-dev \
         libnfnetlink-dev libffi-dev python-dev libevent-dev \
-        ebtables python-virtualenv wget gcc python && \
+        ebtables python-virtualenv wget gcc python isc-dhcp-server && \
     cd /srv/tunneldigger && \
     virtualenv env_tunneldigger && \
     cd /srv/tunneldigger/tunneldigger/broker && \
