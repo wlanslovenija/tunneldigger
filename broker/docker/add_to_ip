@@ -1,0 +1,9 @@
+#!/usr/bin/python
+
+import sys
+ip = sys.argv[1]
+ip_int = sum(int(part) * 256 ** (3 - i) for i, part in enumerate(ip.split(".")))
+add = int(sys.argv[2])
+new_ip = add + ip_int
+print("%d.%d.%d.%d" % tuple([0xff & (new_ip / 256 ** (3 - i)) for i in range(4)]))
+

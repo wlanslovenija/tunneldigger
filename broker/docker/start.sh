@@ -38,9 +38,11 @@ iptables -t filter -P FORWARD ACCEPT
 # configure bridge, see
 # https://github.com/wlanslovenija/tunneldigger/blob/master/tests/prepare_server.sh
 #
-brctl addbr br0
-ip a a 192.168.254.1/24 dev br0
-ip l s br0 up
+export IP_NET="${IP_NET:-10.254.0.1/16}"
+# we never use the br0 interface
+#brctl addbr br0
+#ip a a $IP_NET dev br0
+#ip l s br0 up
 # listening ip
 IP=$(ip -4 -o a s dev eth0  | awk '{ print $4 }' | awk -F/ '{print $1}')
 
@@ -102,7 +104,7 @@ log_ip_addresses=${log_ip_addresses:-false}
 ;
 
 ; Called after the tunnel interface goes up
-session.up=/srv/tunneldigger/tunneldigger/broker/scripts/setup_interface.sh
+session.up=/srv/tunneldigger/tunneldigger/broker/docker/setup_interface.sh
 ; Called just before the tunnel interface goes down
 ; (However, due to hooks being asynchonous, the hook may actually execute after the interface was
 ; already removed.)
@@ -111,6 +113,39 @@ session.pre-down=/srv/tunneldigger/tunneldigger/broker/scripts/teardown_interfac
 session.down=
 ; Called after the tunnel MTU gets changed because of PMTU discovery
 session.mtu-changed=/srv/tunneldigger/tunneldigger/broker/scripts/mtu_changed.sh
+EOS
+
+#
+# create the dhcp configuration
+# see https://askubuntu.com/a/184351/136346
+#
+# IP_NET is the ip address of the broker and the netmask in the
+#        form of 192.168.1.1/24
+#
+subnet="`docker/ip_net_to_net_mask \"$IP_NET\" | head -n 1`"
+netmask="`docker/ip_net_to_net_mask \"$IP_NET\" | tail -n 1`"
+subnet_bits="`echo \"$IP_NET\" | grep -Eo '[0-9]+$'`"
+dhcp_start=${dhcp_start:-2}
+dhcp_count=${dhcp_count:-$(( (1 << (32 - subnet_bits)) - 2 - dhcp_start ))}
+dhcp_range_first="`docker/add_to_ip $subnet $dhcp_start`"
+dhcp_range_last="`docker/add_to_ip $subnet $((dhcp_start + dhcp_count))`"
+cat > /etc/dhcp/dhcpd.conf <<EOS
+option domain-name "${domain_name:-example.org}";
+option domain-name-servers ${domain_name_servers:-85.214.20.141, 194.150.168.168, 89.233.43.71};
+default-lease-time ${default_lease_time:-600};
+max-lease-time ${max_lease_time:-7200};
+ddns-update-style ${ddns_update_style:-none};
+subnet $subnet netmask $netmask {
+  range $dhcp_range_first $dhcp_range_last;
+}
+EOS
+
+cat > /etc/dhcp/dhclient-enter-hooks.d/no-resolv-conf <<EOS
+# do not touch the resolv conf file on this computer
+make_resolv_conf()
+{
+  return 0
+}
 EOS
 
 #

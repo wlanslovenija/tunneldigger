@@ -1,0 +1,14 @@
+#!/usr/bin/python
+import sys
+
+IP_NET=sys.argv[1]
+ip, net = IP_NET.split("/")
+bits = int(net)
+ip = list(map(int, ip.split(".")))
+bits = 0xffffffff ^ (0xffffffff >>bits)
+print("%i.%i.%i.%i" % (bits >> 24 & ip[0], bits >> 16 & ip[1], 
+                       bits >>  8 & ip[2], bits       & ip[3], ))
+
+print("%i.%i.%i.%i" % (bits >> 24 & 0xff, bits >> 16 & 0xff, 
+                       bits >>  8 & 0xff, bits       & 0xff, ))
+

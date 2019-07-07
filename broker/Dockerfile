@@ -20,7 +20,8 @@ RUN apt-get update && \
     apt-get install -y \
         iproute2 bridge-utils libnetfilter-conntrack-dev \
         libnfnetlink-dev libffi-dev python-dev libevent-dev \
-        ebtables python-virtualenv wget gcc python isc-dhcp-server && \
+        ebtables python-virtualenv wget gcc python isc-dhcp-server \
+        isc-dhcp-client && \
     cd /srv/tunneldigger && \
     virtualenv env_tunneldigger && \
     cd /srv/tunneldigger/tunneldigger/broker && \
@@ -30,13 +31,12 @@ RUN apt-get update && \
     apt-get -y autoremove
 
 #
-# Get all files for docker
-#
-COPY docker /srv/tunneldigger/tunneldigger/broker/docker
-
-#
 # Start the service
 #
 CMD /srv/tunneldigger/tunneldigger/broker/docker/start.sh
 
+#
+# Get all files for docker
+#
+COPY docker /srv/tunneldigger/tunneldigger/broker/docker
 

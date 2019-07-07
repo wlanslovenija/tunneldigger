@@ -1,3 +1,5 @@
+IP_NET="${IP_NET:-10.254.0.2/16}"
+
 ensure_policy()
 {
   ip rule del $*
@@ -13,7 +15,7 @@ ensure_bridge()
     # Bridge did not exist before, we have to initialize it
     ip link set dev $brname up
     # TODO The IP address should probably not be hardcoded here?
-    ip addr add 10.254.0.2/16 dev $brname
+    ip addr add $IP_NET dev $brname
     # TODO Policy routing should probably not be hardcoded here?
     ensure_policy from all iif $brname lookup mesh prio 1000
     # Disable forwarding between bridge ports
