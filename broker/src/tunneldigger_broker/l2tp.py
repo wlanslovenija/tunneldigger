@@ -1,5 +1,5 @@
-import netlink
-import genetlink
+from . import netlink
+from . import genetlink
 import logging
 import traceback
 import errno
@@ -106,7 +106,7 @@ class NetlinkInterface(object):
 
         try:
             self.connection.recv()
-        except OSError, e:
+        except OSError as e:
             if e.errno == errno.EEXIST:
                 # This tunnel identifier is already in use; make sure to remove it from
                 # our pool of assignable tunnel identifiers.
@@ -172,7 +172,7 @@ class NetlinkInterface(object):
 
         try:
             self.connection.recv()
-        except OSError, e:
+        except OSError as e:
             if e.errno == errno.EEXIST:
                 raise L2TPSessionExists(session_id)
 

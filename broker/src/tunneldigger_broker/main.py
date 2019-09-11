@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import logging
 import logging.config
 import os
@@ -8,18 +8,18 @@ import sys
 from . import broker, eventloop, hooks
 
 if os.getuid() != 0:
-    print "ERROR: The tunneldigger broker must be run as root."
+    print("ERROR: The tunneldigger broker must be run as root.")
     sys.exit(1)
 
 # Load configuration.
-config = ConfigParser.SafeConfigParser()
+config = configparser.SafeConfigParser()
 try:
     config.read(sys.argv[1])
 except IOError:
-    print "ERROR: Failed to open the specified configuration file '%s'!" % sys.argv[1]
+    print("ERROR: Failed to open the specified configuration file '%s'!" % sys.argv[1])
     sys.exit(1)
 except IndexError:
-    print "ERROR: First argument must be a configuration file path!"
+    print("ERROR: First argument must be a configuration file path!")
     sys.exit(1)
 
 # Configure logging.
@@ -64,7 +64,7 @@ for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-chan
         script = config.get('hooks', hook).strip()
         if not script:
             continue
-    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+    except (configparser.NoOptionError, configparser.NoSectionError):
         continue
 
     hook_manager.register_hook(hook, script)

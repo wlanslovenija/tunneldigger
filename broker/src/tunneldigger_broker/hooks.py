@@ -153,7 +153,7 @@ class HookManager(object):
             process = HookProcess(name, script, args)
             process.register(self.event_loop)
             self.processes[process.process.pid] = process
-        except OSError, e:
+        except OSError as e:
             logger.error("Error while executing script '%s': %s" % (script, e))
 
     def close(self):

@@ -1,6 +1,6 @@
 import os
 import errno
-import timerfd
+from . import timerfd
 import logging
 import traceback
 import select

@@ -7,8 +7,8 @@ GPLv2+; See copying for details.
 '''
 
 import struct
-from netlink import NLM_F_REQUEST, NLMSG_MIN_TYPE, Message, parse_attributes
-from netlink import NulStrAttr, Connection, NETLINK_GENERIC
+from .netlink import NLM_F_REQUEST, NLMSG_MIN_TYPE, Message, parse_attributes
+from .netlink import NulStrAttr, Connection, NETLINK_GENERIC
 
 CTRL_CMD_UNSPEC       = 0
 CTRL_CMD_NEWFAMILY    = 1

@@ -3,7 +3,7 @@ import socket
 import time
 import traceback
 
-import conntrack
+from . import conntrack
 import netfilter.table
 import netfilter.rule
 
@@ -42,7 +42,7 @@ class TunnelManager(object):
         self.hook_manager = hook_manager
         self.max_tunnels = max_tunnels
         self.tunnel_id_base = tunnel_id_base
-        self.tunnel_ids = set(xrange(tunnel_id_base, tunnel_id_base + max_tunnels))
+        self.tunnel_ids = set(range(tunnel_id_base, tunnel_id_base + max_tunnels))
         self.tunnel_port_base = tunnel_port_base
         self.namespace = namespace
         self.tunnels = {}
@@ -117,11 +117,11 @@ class TunnelManager(object):
             self.last_tunnel_created = now
         except KeyboardInterrupt:
             raise
-        except l2tp.L2TPTunnelExists, e:
+        except l2tp.L2TPTunnelExists as e:
             # Do not return the tunnel identifier into the pool.
             logger.warning("Tunnel identifier %d already exists." % e.tunnel_id)
             return False
-        except l2tp.L2TPSessionExists, e:
+        except l2tp.L2TPSessionExists as e:
             # Return tunnel identifier into the pool.
             self.tunnel_ids.add(tunnel_id)
             logger.warning("Session identifier %d already exists." % e.session_id)
@@ -208,7 +208,7 @@ class TunnelManager(object):
         manager instance should not be used after calling this method.
         """
 
-        for tunnel in self.tunnels.values():
+        for tunnel in list(self.tunnels.values()):
             try:
                 tunnel.close()
             except:

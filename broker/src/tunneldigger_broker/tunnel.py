@@ -1,4 +1,4 @@
-import conntrack
+from . import conntrack
 import fcntl
 import logging
 import netfilter.table
