@@ -29,7 +29,6 @@ setup(
     ],
     install_requires=[
         'netfilter>=0.6.2',
-        'six>=1.10.0',
         'cffi>=1.4.1',
     ],
     extras_require={},

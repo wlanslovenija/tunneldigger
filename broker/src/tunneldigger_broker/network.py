@@ -36,7 +36,7 @@ class Pollable(object):
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.socket.bind(address)
-        self.socket.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, interface)
+        self.socket.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, interface.encode('utf-8'))
 
         self.address = address
         self.interface = interface
@@ -124,7 +124,7 @@ class Pollable(object):
         except socket.error:
             return
 
-    def write_message(self, address, msg_type, msg_data=''):
+    def write_message(self, address, msg_type, msg_data=b''):
         """
         Writes a protocol message into the underlying UDP socket.
 
@@ -135,14 +135,14 @@ class Pollable(object):
 
         assert len(msg_data) < 255
 
-        data = '\x80\x73\xA7\x01'
+        data = b'\x80\x73\xA7\x01'
         data += struct.pack('!BB', msg_type, len(msg_data))
         data += msg_data
 
         # Pad the message to be at least 12 bytes long, as otherwise some firewalls
         # may filter it when used over port 53.
         if len(data) < 12:
-            data += '\x00' * (12 - len(data))
+            data += b'\x00' * (12 - len(data))
 
         self.write(address, data)
 

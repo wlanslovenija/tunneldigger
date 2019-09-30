@@ -227,12 +227,12 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             self.create_timer(self.pmtu_discovery, timeout=random.randrange(500, 700))
             return
 
-        self.pmtu_probe_size = PMTU_PROBE_SIZES[self.pmtu_probe_iteration / PMTU_PROBE_REPEATS]
+        self.pmtu_probe_size = PMTU_PROBE_SIZES[int(self.pmtu_probe_iteration / PMTU_PROBE_REPEATS)]
         self.pmtu_probe_iteration = (self.pmtu_probe_iteration + 1) % PMTU_PROBE_COMBINATIONS
 
         # Transmit the PMTU probe.
-        probe = '\x80\x73\xA7\x01\x06\x00'
-        probe += '\x00' * (self.pmtu_probe_size - IPV4_HDR_OVERHEAD - len(probe))
+        probe = b'\x80\x73\xA7\x01\x06\x00'
+        probe += b'\x00' * (self.pmtu_probe_size - IPV4_HDR_OVERHEAD - len(probe))
         self.write(self.endpoint, probe)
 
         # Wait some to get the reply.
@@ -253,7 +253,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Alter tunnel MTU.
         try:
-            interface_name = (self.get_session_name() + '\x00' * 16)[:16]
+            interface_name = (self.get_session_name().encode('utf-8') + b'\x00' * 16)[:16]
             data = struct.pack("16si", interface_name, self.tunnel_mtu)
             fcntl.ioctl(self.socket, SIOCSIFMTU, data)
         except IOError:
