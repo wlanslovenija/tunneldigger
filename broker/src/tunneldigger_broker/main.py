@@ -12,7 +12,7 @@ if os.getuid() != 0:
     sys.exit(1)
 
 # Load configuration.
-config = configparser.SafeConfigParser()
+config = configparser.ConfigParser()
 try:
     config.read(sys.argv[1])
 except IOError:
