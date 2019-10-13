@@ -1,8 +1,5 @@
-from . import conntrack
 import fcntl
 import logging
-import netfilter.table
-import netfilter.rule
 import random
 import socket
 import struct
@@ -124,57 +121,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         except l2tp.NetlinkError:
             self.socket.close()
             raise TunnelSetupFailed
-
-        # Setup netfilter rules.
-        self.prerouting_rule = netfilter.rule.Rule(
-            in_interface=self.interface,
-            protocol='udp',
-            source=self.endpoint[0],
-            destination=self.address[0],
-            matches=[
-                netfilter.rule.Match('udp', '--sport %d --dport %d' % (self.endpoint[1], self.broker.address[1])),
-            ],
-            jump=netfilter.rule.Target('DNAT', '--to %s:%d' % self.address)
-        )
-
-        self.postrouting_rule = netfilter.rule.Rule(
-            out_interface=self.interface,
-            protocol='udp',
-            source=self.address[0],
-            destination=self.endpoint[0],
-            matches=[
-                netfilter.rule.Match('udp', '--sport %d --dport %d' % (self.address[1], self.endpoint[1])),
-            ],
-            jump=netfilter.rule.Target('SNAT', '--to %s:%d' % self.broker.address)
-        )
-
-        try:
-            nat = netfilter.table.Table('nat')
-            nat.append_rule('L2TP_PREROUTING_%s' % self.broker.tunnel_manager.namespace, self.prerouting_rule)
-            nat.append_rule('L2TP_POSTROUTING_%s' % self.broker.tunnel_manager.namespace, self.postrouting_rule)
-        except netfilter.table.IptablesError:
-            raise TunnelSetupFailed
-
-        # Clear connection tracking table to force the kernel to evaluate the newly added netfilter rules. Note
-        # that the below filter must match the above netfilter rules.
-        try:
-            self.broker.conntrack.kill(
-                proto=socket.IPPROTO_UDP,
-                src=self.endpoint[0],
-                dst=self.address[0],
-                sport=self.endpoint[1],
-                dport=self.broker.address[1],
-            )
-
-            self.broker.conntrack.kill(
-                proto=socket.IPPROTO_UDP,
-                src=self.address[0],
-                dst=self.endpoint[0],
-                sport=self.address[1],
-                dport=self.endpoint[1],
-            )
-        except conntrack.ConntrackError:
-            logger.warning("Failed to clear connection tracking table entries.")
 
         self.created_time = time.time()
 
@@ -331,14 +277,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.write_message(self.endpoint, protocol.CONTROL_TYPE_ERROR, bytearray([reason]))
 
         super(Tunnel, self).close()
-
-        # Clear netfilter rules.
-        try:
-            nat = netfilter.table.Table('nat')
-            nat.delete_rule('L2TP_PREROUTING_%s' % self.broker.tunnel_manager.namespace, self.prerouting_rule)
-            nat.delete_rule('L2TP_POSTROUTING_%s' % self.broker.tunnel_manager.namespace, self.postrouting_rule)
-        except netfilter.table.IptablesError:
-            pass
 
         self.broker.tunnel_manager.destroy_tunnel(self)
 
