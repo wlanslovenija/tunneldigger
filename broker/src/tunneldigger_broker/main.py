@@ -86,25 +86,25 @@ logger.info("Tunnel identifier base is %d." % tunnel_manager.tunnel_id_base)
 
 # Initialize one broker for each port.
 brokers = []
-broker_host = config.get('broker', 'address')
-for port in config.get('broker', 'port').split(','):
-    try:
-        broker_instance = broker.Broker(
-            (broker_host, int(port)),
-            config.get('broker', 'interface'),
-            tunnel_manager,
-        )
-        logger.info("Listening on %s:%d." % broker_instance.address)
-    except ValueError:
-        logger.warning("Malformed port number '%s', skipping." % port)
-        continue
-    except socket.error:
-        # Skip ports that we fail to listen on.
-        logger.warning("Failed to listen on %s:%s, skipping." % (broker_host, port))
-        continue
+for host in config.get('broker', 'address').split(','):
+    for port in config.get('broker', 'port').split(','):
+        try:
+            broker_instance = broker.Broker(
+                (host, int(port)),
+                config.get('broker', 'interface'),
+                tunnel_manager,
+            )
+            logger.info("Listening on %s:%d." % broker_instance.address)
+        except ValueError:
+            logger.warning("Malformed port number '%s', skipping." % port)
+            continue
+        except socket.error:
+            # Skip ports that we fail to listen on.
+            logger.warning("Failed to listen on %s:%s, skipping." % (host, port))
+            continue
 
-    broker_instance.register(event_loop)
-    brokers.append(broker_instance)
+        broker_instance.register(event_loop)
+        brokers.append(broker_instance)
 
 logger.info("Broker initialized.")
 

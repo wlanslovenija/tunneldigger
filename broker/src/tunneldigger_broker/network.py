@@ -1,5 +1,6 @@
 import os
 import errno
+import ipaddress
 from . import timerfd
 import logging
 import traceback
@@ -31,7 +32,9 @@ class Pollable(object):
         :param interface: Interface name to bind to
         """
 
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        ip = ipaddress.ip_address(address[0])
+        socket_family = socket.AF_INET if ip.version == 4 else socket.AF_INET6
+        self.socket = socket.socket(socket_family, socket.SOCK_DGRAM)
         # The L2TP kernel driver's design requires each tunnel to have it's own socket.
         # Since we want all tunnel and tunnel control traffic to use the same port for
         # all clients we enable reuse of ports on the sockets we create.
