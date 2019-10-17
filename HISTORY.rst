@@ -8,6 +8,7 @@ vNEXT
   This can be achieved by deleting the old virtualenv folder and recreating it.
   For recreating the virtualenv you can refer to the "Installation" section of
   the broker `installation chapter in the Tunneldigger documentation`_.
+* IPv6 support for both client and broker.
 * Fixed compatibility with new Linux kernels on the broker side: New kernels
   force the l2tpv3 session ID to be unique system-wide, while old tunneldigger
   clients have a hard-coded ID of 1 for both ends of the tunnel. When a new

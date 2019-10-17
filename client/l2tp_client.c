@@ -41,7 +41,6 @@
 #include <netlink/genl/genl.h>
 #include <netlink/genl/mngt.h>
 #include <netlink/genl/ctrl.h>
-#include <netlink/utils.h>
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -65,6 +64,7 @@
 
 // Overhead of IP and UDP headers for measuring PMTU.
 #define IPV4_HDR_OVERHEAD 28
+#define IPV6_HDR_OVERHEAD 48
 
 // L2TP data header overhead for calculating tunnel MTU; takes
 // the following headers into account:
@@ -143,6 +143,7 @@ enum l2tp_limit_type {
 enum l2tp_ctrl_state {
   STATE_REINIT,
   STATE_RESOLVING,
+  STATE_CONNECTING,
   STATE_GET_USAGE,
   STATE_STANBDY,
   STATE_GET_COOKIE,
@@ -175,21 +176,23 @@ typedef struct {
   unsigned int tunnel_id;
   // External hook script.
   char *hook;
-  // Local IP endpoint.
-  struct sockaddr_in local_endpoint;
   // Broker hostname.
   char *broker_hostname;
   // Broker port (or service name).
   char *broker_port;
   // Broker hostname resolution.
   asyncns_query_t *broker_resq;
+  struct addrinfo *broker_res;
   struct addrinfo broker_reshints;
+  int res_tries;
   // Tunnel's UDP socket file descriptor.
   int fd;
   // Tunnel state.
   int state;
   // Broker usage.
   uint16_t usage;
+  // Reconnection tries
+  int tries;
   // Cookie.
   char cookie[8];
   // Netlink socket.
@@ -201,8 +204,6 @@ typedef struct {
   uint32_t keepalive_seqno;
   // List of unacked reliable messages.
   reliable_message *reliable_unacked;
-  // Force the tunnel to go over a certain interface.
-  char *bind_iface;
   // Limits.
   uint32_t limit_bandwidth_down;
   // Tunnel uptime.
@@ -258,9 +259,8 @@ static asyncns_t *asyncns_context = NULL;
 int broker_selector_usage(broker_cfg *brokers, int broker_cnt, int ready_cnt)
 {
    // Select the available broker with the least usage and use it to establish a tunnel.
-   int i = -1;
    int best = -1;
-   for (i = 0; i < broker_cnt; i++) {
+   for (int i = 0; i < broker_cnt; i++) {
      if (brokers[i].ctx->state == STATE_STANBDY &&
          (best < 0 || brokers[i].ctx->usage < brokers[best].ctx->usage)) {
        best = i;
@@ -319,6 +319,23 @@ int is_timeout(time_t *timer, time_t period)
   return 0;
 }
 
+const char* res_ip_to_str(struct addrinfo *res, char *s, size_t maxlen)
+{
+  switch(res->ai_family) {
+    case AF_INET6:
+      inet_ntop(res->ai_family, &((struct sockaddr_in6 *)res->ai_addr)->sin6_addr, s, maxlen);
+      break;
+    case AF_INET:
+      inet_ntop(res->ai_family, &((struct sockaddr_in *)res->ai_addr)->sin_addr, s, maxlen);
+      break;
+    default:
+      strncpy(s, "unknown ai_family", maxlen);
+      return NULL;
+  }
+
+  return s;
+}
+
 uint8_t parse_u8(char **buffer)
 {
   uint8_t value = *((uint8_t*) *buffer);
@@ -362,8 +379,8 @@ void put_u32(char **buffer, uint32_t value)
   (*buffer) += sizeof(value);
 }
 
-l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_hostname,
-  char *broker_port, char *tunnel_iface, char *bind_iface, char *hook, int tunnel_id, int limit_bandwidth_down)
+l2tp_context *context_new(char *uuid, const char *broker_hostname,
+  char *broker_port, char *tunnel_iface, char *hook, unsigned int tunnel_id, int limit_bandwidth_down)
 {
   l2tp_context *ctx = (l2tp_context*) calloc(1, sizeof(l2tp_context));
   if (!ctx) {
@@ -372,13 +389,7 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   }
 
   ctx->state = STATE_REINIT;
-
-  ctx->local_endpoint.sin_family = AF_INET;
-  ctx->local_endpoint.sin_port = 0;
-  if (inet_aton(local_ip, &ctx->local_endpoint.sin_addr) < 0) {
-    syslog(LOG_ERR, "Failed to parse local endpoint!");
-    goto free_and_return;
-  }
+  ctx->tries = 0;
 
   ctx->broker_hostname = strdup(broker_hostname);
   ctx->broker_port = strdup(broker_port);
@@ -387,8 +398,6 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   ctx->tunnel_iface = strdup(tunnel_iface);
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
-
-  ctx->bind_iface = bind_iface ? strdup(bind_iface) : NULL;
 
   // Reset limits.
   ctx->limit_bandwidth_down = (uint32_t) limit_bandwidth_down;
@@ -423,32 +432,6 @@ int context_reinitialize(l2tp_context *ctx)
   // because other functions than the state machine call this function.
   ctx->state = STATE_REINIT;
 
-  if (ctx->fd > 0)
-    close(ctx->fd);
-  ctx->fd = socket(AF_INET, SOCK_DGRAM, 0);
-  if (ctx->fd < 0)
-    return -1;
-
-  // Bind the socket to an interface if given.
-  if (ctx->bind_iface) {
-    int rc;
-
-    rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->bind_iface, strlen(ctx->bind_iface) + 1);
-    if (rc != 0) {
-      syslog(LOG_ERR, "Failed to bind to device!");
-      return -1;
-    }
-  }
-
-  if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
-    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
-    return -1;
-  }
-
-  int val = IP_PMTUDISC_PROBE;
-  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
-    return -1;
-
   ctx->keepalive_seqno = 0;
   ctx->reliable_seqno = 0;
   while (ctx->reliable_unacked != NULL) {
@@ -460,7 +443,9 @@ int context_reinitialize(l2tp_context *ctx)
   if (ctx->broker_resq)
     asyncns_cancel(asyncns_context, ctx->broker_resq);
   ctx->broker_resq = NULL;
+  ctx->res_tries = 0;
   ctx->usage = -1;
+  ctx->tries = 0;
 
   // Reset relevant timers.
   time_t now = timer_now();
@@ -493,10 +478,18 @@ void context_start_connect(l2tp_context *ctx)
   if (ctx->state != STATE_RESOLVING)
     return;
 
+  char *broker_host = malloc(strlen(ctx->broker_hostname) + 1);
+  strcpy(broker_host, ctx->broker_hostname);
+  // If this is an IPv6 address we need to cut off the brackets
+  if(broker_host[0] == '[') {
+    broker_host++;
+    broker_host[strlen(broker_host)-1] = 0;
+  }
+
   memset(&ctx->broker_reshints, 0, sizeof(struct addrinfo));
-  ctx->broker_reshints.ai_family = AF_INET;
+  ctx->broker_reshints.ai_family = AF_UNSPEC;
   ctx->broker_reshints.ai_socktype = SOCK_DGRAM;
-  ctx->broker_resq = asyncns_getaddrinfo(asyncns_context, ctx->broker_hostname, ctx->broker_port,
+  ctx->broker_resq = asyncns_getaddrinfo(asyncns_context, broker_host, ctx->broker_port,
     &ctx->broker_reshints);
   ctx->timer_resolving = timer_now();
 
@@ -504,6 +497,27 @@ void context_start_connect(l2tp_context *ctx)
     syslog(LOG_ERR, "Failed to start name resolution!");
     return;
   }
+}
+
+int context_connect(l2tp_context *ctx) {
+  if (ctx->fd > 0)
+    close(ctx->fd);
+
+  ctx->fd = socket(ctx->broker_res->ai_family, ctx->broker_res->ai_socktype, ctx->broker_res->ai_protocol);
+
+  if (ctx->fd < 0)
+    return -1;
+
+  int val = IP_PMTUDISC_PROBE;
+  if (setsockopt(ctx->fd, IPPROTO_IP, IP_MTU_DISCOVER, &val, sizeof(val)) < 0)
+    return -1;
+
+  if (connect(ctx->fd, ctx->broker_res->ai_addr, ctx->broker_res->ai_addrlen) < 0) {
+    syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
+    return -1;
+  }
+
+  return 0;
 }
 
 void context_call_hook(l2tp_context *ctx, const char *hook)
@@ -545,7 +559,7 @@ void context_setup_limits(l2tp_context *ctx)
 void context_process_control_packet(l2tp_context *ctx)
 {
   char buffer[2048];
-  struct sockaddr_in endpoint;
+  struct sockaddr_storage endpoint;
   socklen_t endpoint_len = sizeof(endpoint);
   ssize_t bytes = recvfrom(ctx->fd, &buffer, sizeof(buffer), 0, (struct sockaddr*) &endpoint,
     &endpoint_len);
@@ -663,7 +677,8 @@ void context_process_control_packet(l2tp_context *ctx)
         if (payload_length != 2)
           break;
         // Process a PMTU probe.
-        uint16_t psize = parse_u16(&buf) + IPV4_HDR_OVERHEAD;
+        int overhead = ctx->broker_res->ai_family == AF_INET6 ? IPV4_HDR_OVERHEAD : IPV6_HDR_OVERHEAD;
+        uint16_t psize = parse_u16(&buf) + overhead;
         if (psize > ctx->probed_pmtu)
           ctx->probed_pmtu = psize;
       }
@@ -817,7 +832,8 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
   put_u8(&buf, 0);
 
   // Send the packet.
-  if (send(ctx->fd, &buffer, size - IPV4_HDR_OVERHEAD, 0) < 0) {
+  int overhead = ctx->broker_res->ai_family == AF_INET6 ? IPV4_HDR_OVERHEAD : IPV6_HDR_OVERHEAD;
+  if (send(ctx->fd, &buffer, size - overhead, 0) < 0) {
     switch (errno) {
       // Sometimes EAFNOSUPPORT is emitted for messages larger than the local MTU in case of PPPoE.
       case EAFNOSUPPORT:
@@ -1099,25 +1115,24 @@ void context_process(l2tp_context *ctx)
 
       // Check if address has already been resolved and change state.
       if (ctx->broker_resq && asyncns_isdone(asyncns_context, ctx->broker_resq)) {
-        struct addrinfo *result;
-        int status = asyncns_getaddrinfo_done(asyncns_context, ctx->broker_resq, &result);
+        int status = asyncns_getaddrinfo_done(asyncns_context, ctx->broker_resq, &ctx->broker_res);
 
+        ctx->res_tries++;
         if (status != 0) {
-          syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
+          syslog(LOG_ERR, "Failed to resolve hostname '%s'. (Error %i: %s)", ctx->broker_hostname, status, gai_strerror(status));
           /* TODO: memory leak - asyncns_getaddrinfo_done() does not free in all error cases ctx->broker_resp.
            * Fix asyncns - remove free() from asyncns_getaddrinfo_done()
            */
           ctx->broker_resq = NULL;
-          ctx->state = STATE_REINIT;
+          ctx->broker_res = NULL;
+          if(ctx->res_tries > 2) {
+            ctx->state = STATE_FAILED;
+          } else {
+            ctx->state = STATE_RESOLVING;
+          }
           return;
         } else {
-          if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
-            syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
-            ctx->state = STATE_REINIT;
-          } else {
-            ctx->state = STATE_GET_USAGE;
-          }
-          asyncns_freeaddrinfo(result);
+          ctx->state = STATE_CONNECTING;
           ctx->broker_resq = NULL;
         }
       } else if (is_timeout(&ctx->timer_resolving, 2)) {
@@ -1129,6 +1144,19 @@ void context_process(l2tp_context *ctx)
         ctx->state = STATE_REINIT;
         return;
       }
+      if (ctx->state == STATE_CONNECTING) {
+        // Deliberate fall-through, let's get the usage ASAP.
+      } else {
+        break;
+      }
+    }
+    case STATE_CONNECTING: {
+      ctx->tries = 0;
+      if (context_connect(ctx) != 0) {
+        syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
+        ctx->state = STATE_REINIT;
+      }
+      ctx->state = STATE_GET_USAGE;
       if (ctx->state == STATE_GET_USAGE) {
         // Deliberate fall-through, let's get the usage ASAP.
       } else {
@@ -1138,6 +1166,10 @@ void context_process(l2tp_context *ctx)
     case STATE_GET_USAGE: {
       if (ctx->timer_usage == 0) {
         // The initial request.  We only ask for usage.
+        char str[INET6_ADDRSTRLEN+1];
+        res_ip_to_str(ctx->broker_res, str, sizeof(str));
+        syslog(LOG_INFO, "Trying broker %s on IP %s", ctx->broker_hostname, str);
+
         context_send_usage_request(ctx);
         ctx->timer_usage = timer_now();
       } else if (is_timeout(&ctx->timer_usage, 2)) {
@@ -1265,7 +1297,7 @@ void context_free(l2tp_context *ctx)
   free(ctx->hook);
   free(ctx->broker_hostname);
   free(ctx->broker_port);
-  free(ctx->bind_iface);
+  asyncns_freeaddrinfo(ctx->broker_res);
   free(ctx);
 }
 
@@ -1296,10 +1328,8 @@ void show_help(const char *app)
     "       -h            this text\n"
     "       -f            don't daemonize into background\n"
     "       -u uuid       set UUID string\n"
-    "       -l ip         local IP address to bind to (default 0.0.0.0)\n"
     "       -b host:port  broker hostname and port (can be specified multiple times)\n"
     "       -i iface      tunnel interface name\n"
-    "       -I iface      force client to bind tunnel socket to a specific interface\n"
     "       -s hook       hook script\n"
     "       -t id         local tunnel id (default 1)\n"
     "       -L limit      request broker to set downstream bandwidth limit (in kbps)\n"
@@ -1319,7 +1349,7 @@ int main(int argc, char **argv)
 
   // Parse program options.
   int log_option = 0;
-  char *uuid = NULL, *local_ip = "0.0.0.0", *tunnel_iface = NULL, *bind_iface_opt = NULL;
+  char *uuid = NULL, *tunnel_iface = NULL;
   char *hook = NULL;
   unsigned int tunnel_id = 1;
   int limit_bandwidth_down = 0;
@@ -1329,7 +1359,7 @@ int main(int argc, char **argv)
   int broker_cnt = 0;
 
   int c;
-  while ((c = getopt(argc, argv, "hfu:l:b:p:i:s:t:L:I:agr")) != -1) {
+  while ((c = getopt(argc, argv, "hfu:b:p:i:s:t:L:agr")) != -1) {
     switch (c) {
       case 'h': {
         show_help(argv[0]);
@@ -1341,14 +1371,13 @@ int main(int argc, char **argv)
 
       case 'f': log_option |= LOG_PERROR; break;
       case 'u': uuid = strdup(optarg); break;
-      case 'l': local_ip = strdup(optarg); break;
       case 'b': {
         if (broker_cnt >= MAX_BROKERS) {
           fprintf(stderr, "ERROR: You cannot specify more than %d brokers!\n", MAX_BROKERS);
           return 1;
         }
 
-        char *pos = strchr(optarg, ':');
+        char *pos = strrchr(optarg, ':');
         if (!pos) {
           fprintf(stderr, "ERROR: Each broker must be passed in the format 'host:port'!\n");
           return 1;
@@ -1365,7 +1394,6 @@ int main(int argc, char **argv)
       case 's': hook = strdup(optarg); break;
       case 't': tunnel_id = strtoul(optarg, NULL, 0); break;
       case 'L': limit_bandwidth_down = atoi(optarg); break;
-      case 'I': bind_iface_opt = strdup(optarg); break;
       default: {
         fprintf(stderr, "ERROR: Invalid option %c!\n", c);
         show_help(argv[0]);
@@ -1402,8 +1430,8 @@ int main(int argc, char **argv)
     // unreachable or if the L2TP kernel modules are not loaded. We will retry for 5 minutes
     // and then abort.
     for (;;) {
-      brokers[i].ctx = context_new(uuid, local_ip, brokers[i].address, brokers[i].port,
-        tunnel_iface, bind_iface_opt, hook, tunnel_id, limit_bandwidth_down);
+      brokers[i].ctx = context_new(uuid, brokers[i].address, brokers[i].port,
+        tunnel_iface, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
         syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
@@ -1451,6 +1479,21 @@ int main(int argc, char **argv)
       broker_select(brokers, broker_cnt);
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
+        // If we are stuck in in STATE_GET_USAGE and have more resolved addresses at our disposal try them up to three times.
+        if(brokers[i].ctx->broker_res != NULL) {
+          if(brokers[i].ctx->state == STATE_GET_USAGE &&
+             is_timeout(&brokers[i].ctx->timer_usage, 2) &&
+             brokers[i].ctx->tries > 2 &&
+             brokers[i].ctx->broker_res->ai_next != NULL) {
+            char str[INET6_ADDRSTRLEN+1];
+            res_ip_to_str(brokers[i].ctx->broker_res, str, sizeof(str));
+            syslog(LOG_DEBUG, "Broker %s failed on IP %s, trying next",
+              brokers[i].address, str);
+            brokers[i].ctx->broker_res = brokers[i].ctx->broker_res->ai_next;
+            brokers[i].ctx->state = STATE_CONNECTING;
+          }
+        }
+        brokers[i].ctx->tries++;
       }
 
       for (i = 0; i < broker_cnt; i++) {
@@ -1478,8 +1521,14 @@ int main(int argc, char **argv)
     }
 
     main_context = brokers[i].ctx;
-    syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
-      brokers[i].port);
+    char *ipver;
+    if (brokers[i].ctx->broker_res->ai_family == AF_INET) {
+      ipver = "IPv4";
+    } else {
+      ipver = "IPv6";
+    }
+    syslog(LOG_INFO, "Selected %s:%s (%s) as the best broker.", brokers[i].address,
+      brokers[i].port, ipver);
 
     // Activate the broker.
     main_context->state = STATE_GET_COOKIE;
