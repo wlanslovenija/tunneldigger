@@ -14,6 +14,10 @@ from threading import Timer
 
 LOG = logging.getLogger("test.tunneldigger")
 
+def lxc_run_command(container, command):
+    if container.attach_wait(lxc.attach_run_command, command):
+        raise RuntimeError("failed to run command: {}", command)
+
 def setup_template():
     """ all test container are cloned from this one
     it's important that this container is *NOT* running!
@@ -21,23 +25,26 @@ def setup_template():
     container = lxc.Container("tunneldigger-base")
 
     if not container.defined:
-        if not container.create("download", lxc.LXC_CREATE_QUIET, {"dist": "ubuntu",
-                                                                   "release": "trusty",
-                                                                   "arch": "amd64"}):
+        for i in range(0, 3): # retry a few times, this tends to fail spuriously on travis
+            if container.create("download", lxc.LXC_CREATE_QUIET,
+                                {"dist": "ubuntu", "release": "bionic", "arch": "amd64"}):
+                break
+        else:
             raise RuntimeError("failed to create container")
 
     if not container.running:
         if not container.start():
             raise RuntimeError("failed to start container")
 
-    container.attach_wait(lxc.attach_run_command, ["dhclient", "eth0"])
+    lxc_run_command(container, ["ip", "a"])
+    lxc_run_command(container, ["dhclient", "eth0"])
     check_ping(container, 'google-public-dns-a.google.com', 10)
-    container.attach_wait(lxc.attach_run_command, ["apt-get", "update"])
-    container.attach_wait(lxc.attach_run_command, ["apt-get", "dist-upgrade", "-y"])
+    lxc_run_command(container, ["apt-get", "update"])
+    lxc_run_command(container, ["apt-get", "dist-upgrade", "-y"])
 
     # tunneldigger requirements
     pkg_to_install = [
-        "iproute",
+        "iproute2",
         "bridge-utils",
         "libnetfilter-conntrack3",
         "python-dev",
@@ -66,7 +73,7 @@ def setup_template():
         "lighttpd"
         ]
 
-    container.attach_wait(lxc.attach_run_command, ["apt-get", "install", "-y"] + pkg_to_install)
+    lxc_run_command(container, ["apt-get", "install", "-y"] + pkg_to_install)
     container.shutdown(30)
 
 def get_random_context():
@@ -81,10 +88,10 @@ def configure_network(container, bridge, ip_netmask):
     bridge the name of your bridge to attach the container
     ip_netmask is the give address in cidr. e.g. 192.168.1.2/24"""
     config = [
-        ('lxc.network.type', 'veth'),
-        ('lxc.network.link', bridge),
-        ('lxc.network.flags', 'up'),
-        ('lxc.network.ipv4', ip_netmask),
+        ('lxc.net.1.type', 'veth'),
+        ('lxc.net.1.link', bridge),
+        ('lxc.net.1.flags', 'up'),
+        ('lxc.net.1.ipv4.address', ip_netmask),
     ]
 
     for item in config:
@@ -169,7 +176,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
             (base.name, base.name))
 
     LOG.info("Cloning base (%s) to server (%s)", base.name, name)
-    cont = base.clone(name, None, lxc.LXC_CLONE_SNAPSHOT, bdevtype='aufs')
+    cont = base.clone(name, flags=lxc.LXC_CLONE_SNAPSHOT, bdevtype='overlayfs')
     if not cont:
         raise RuntimeError('could not create container "%s"' % name)
     configure_network(cont, bridge, ip_netmask)
@@ -343,4 +350,4 @@ if __name__ == '__main__':
         testing(args.client, args.server)
 
     if args.clean:
-        clean_up()
+        raise RuntimeError("not yet implemented...")
