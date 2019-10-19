@@ -14,6 +14,8 @@ if [ -f CMakeLists.txt ]; then
   cmake .
   make VERBOSE=1
 else
+  # patch makefile as needed...
+  sed -i 's/-Werror//g' Makefile
   sed -i 's/-lnl/-lnl-3 -lnl-genl-3/g' Makefile
   sed -i 's#-I.#-I. -I/usr/include/libnl3 -DLIBNL_TINY#g' Makefile
   make

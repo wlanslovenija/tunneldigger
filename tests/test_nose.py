@@ -53,12 +53,12 @@ class TestTunneldigger(object):
         if ret != 0:
             raise RuntimeError("failed to run the tests")
 
-    def test_ensure_tunnel_up_for_5m(self):
+    def test_ensure_tunnel_up_for_1m(self):
         # get id of l2tp0 iface
         first_interface_id = run_as_lxc(CLIENT, ['bash', '-c', 'ip -o link show l2tp0 | awk -F: \'{ print $1 }\''])
-        # sleep 5 minutes
-        sleep(5 * 60)
+        # sleep 1 minute
+        sleep(60)
         # get id of l2tp0 iface
         second_interface_id = run_as_lxc(CLIENT, ['bash', '-c', 'ip -o link show l2tp0 | awk -F: \'{ print $1 }\''])
-        LOG.info("Check l2tp is stable for 5m. first id %s == %s second id " % (first_interface_id, second_interface_id))
+        LOG.info("Check l2tp is stable for 1m. first id %s == %s second id " % (first_interface_id, second_interface_id))
         assert first_interface_id == second_interface_id
