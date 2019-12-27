@@ -18,17 +18,18 @@ def lxc_run_command(container, command):
     if container.attach_wait(lxc.attach_run_command, command):
         raise RuntimeError("failed to run command: {}", command)
 
-def setup_template():
+def setup_template(ubuntu_release):
     """ all test container are cloned from this one
     it's important that this container is *NOT* running!
     """
-    container = lxc.Container("tunneldigger-base")
+    container = lxc.Container("tunneldigger-base-{}".format(ubuntu_release))
 
     if not container.defined:
-        for i in range(0, 3): # retry a few times, this tends to fail spuriously on travis
+        for i in range(0, 5): # retry a few times, this tends to fail spuriously on travis
             if container.create("download", lxc.LXC_CREATE_QUIET,
-                                {"dist": "ubuntu", "release": "bionic", "arch": "amd64"}):
+                                {"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
                 break
+            sleep(3) # wait a bit before next attempt
         else:
             raise RuntimeError("failed to create container")
 
@@ -157,18 +158,18 @@ def testing(client_rev, server_rev):
         raise RuntimeError('Tunneldigger client can not connect to the server')
     run_tests(server, client)
 
-def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
+def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24', ubuntu_release="bionic"):
     if cont_type not in ['server', 'client']:
         raise RuntimeError('Unknown container type given')
     if lxc.Container(name).defined:
         raise RuntimeError('Container "%s" already exist!' % name)
+    LOG.info("Preparing %s on Ubuntu %s" % (cont_type, ubuntu_release))
 
-    base = lxc.Container("tunneldigger-base")
+    base = lxc.Container("tunneldigger-base-{}".format(ubuntu_release))
 
     if not base.defined:
         raise RuntimeError("Setup first the base container")
 
-    base = lxc.Container("tunneldigger-base")
     if base.running:
         raise RuntimeError(
             "base container %s is still running."
@@ -197,7 +198,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
     LOG.info("Finished prepare_server %s", name)
     return cont
 
-def prepare_containers(context, client_rev, server_rev):
+def prepare_containers(context, client_rev, client_ubuntu_release, server_rev, server_ubuntu_release):
     """ this does the real test.
     - cloning containers from tunneldigger-base
     - setup network
@@ -213,8 +214,8 @@ def prepare_containers(context, client_rev, server_rev):
     bridge_name = "br-%s" % context
 
     create_bridge(bridge_name)
-    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24')
-    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24')
+    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24', server_ubuntu_release)
+    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24', client_ubuntu_release)
 
     return client, server
 
@@ -320,8 +321,8 @@ if __name__ == '__main__':
     # operation on the hosts
     parser.add_argument('--check-host', dest='check_host', action='store_true', default=False,
             help="Check if the host has all requirements installed")
-    parser.add_argument('--setup', dest='setup', action='store_true', default=False,
-            help="Setup the basic template. Must run once before doing the tests.")
+    parser.add_argument('--setup', dest='setup', type=str,
+            help="Setup the basic template for the given ubuntu release")
     # testing arguments
     parser.add_argument('-t', '--test', dest='test', action='store_true', default=False,
             help="Do a test run. Server rev and Client rev required. See -s and -c.")
@@ -342,7 +343,7 @@ if __name__ == '__main__':
         check_host()
 
     if args.setup:
-        setup_template()
+        setup_template(args.setup)
 
     if args.test:
         if not args.server or not args.client:

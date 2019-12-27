@@ -23,7 +23,7 @@ fi
 
 case "$SELECT" in
   nose)
-    test_nose $OLD_REV $NEW_REV
+    test_nose $OLD_REV $OLD_UBUNTU $NEW_REV
     ;;
   usage)
     test_usage $NEW_REV
