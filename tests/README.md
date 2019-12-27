@@ -5,7 +5,7 @@ The automatic testing with tunneldigger uses lxc container and the python3 api o
 
 ## Setup the environment
 
-```./test_td.py --setup```
+```./tunneldigger.py --setup```
 
 will setup the lxc environment and create a snapshot which is used by all tests.
 The resulting container is named tunneldigger-base.
@@ -14,7 +14,7 @@ The resulting container is named tunneldigger-base.
 ## Do a test run
 
 A test run requires you have setted up the environment.
-```./test_td.py -t -s HEAD -c HEAD```
+```./tunneldigger.py -t -s HEAD -c HEAD```
 
 will do a test run using HEAD for the server and the client.
 
