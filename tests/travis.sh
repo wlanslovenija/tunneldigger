@@ -21,6 +21,14 @@ if [ "$OLD_REV" = "HEAD" ] ; then
   OLD_REV=$TRAVIS_COMMIT
 fi
 
+# finish setup
+$(dirname $0)/tunneldigger.py --setup bionic
+if [[ "$OLD_UBUNTU" == "trusty" || "$SELECT" == "usage" ]]; then
+    $(dirname $0)/tunneldigger.py --setup trusty
+fi
+
+# run required test
+
 case "$SELECT" in
   nose)
     test_nose $OLD_REV $OLD_UBUNTU $NEW_REV
