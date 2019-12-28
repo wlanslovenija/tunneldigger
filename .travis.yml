@@ -20,7 +20,7 @@ install:
   - sudo iptables -t nat -L >/dev/null
   - sudo iptables -t filter -P FORWARD ACCEPT
 script:
-  - sudo -E sh ./tests/travis.sh
+  - sudo -E ./tests/travis.sh
 
 env:
   matrix:
