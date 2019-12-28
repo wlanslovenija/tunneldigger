@@ -249,7 +249,6 @@ void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id, uint32_t server_features);
 void context_free(l2tp_context *ctx);
-void broker_select_one(broker_cfg one_broker);
 void broker_select(broker_cfg *brokers, int broker_cnt);
 
 static l2tp_context *main_context = NULL;
@@ -1035,13 +1034,6 @@ void context_close_tunnel(l2tp_context *ctx, uint8_t reason)
   ctx->state = STATE_FAILED;
 }
 
-void broker_select_one(broker_cfg one_broker)
-{
-  broker_cfg broker[1];
-  broker[0] = one_broker;
-  broker_select(broker, 1);
-}
-
 void broker_select(broker_cfg *brokers, int broker_cnt)
 {
   // Poll the file descriptor to see if anything is to be read/written.
@@ -1448,7 +1440,7 @@ int main(int argc, char **argv)
     int ready_cnt = 0;
     for (;;) {
       ready_cnt = 0;
-      broker_select(brokers, broker_cnt);
+      broker_select(brokers, broker_cnt); // poll from all FDs
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
       }
@@ -1477,6 +1469,7 @@ int main(int argc, char **argv)
       continue;
     }
 
+    // Henceforth, brokers[i] is the active broker.
     main_context = brokers[i].ctx;
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
@@ -1493,7 +1486,7 @@ int main(int argc, char **argv)
     // not recover after 15 seconds, restart the broker selection process.
     time_t timer_establish = timer_now();
     for (;;) {
-      broker_select_one(brokers[i]);
+      broker_select(&brokers[i], 1); // poll from this FD
       context_process(main_context);
 
       if (main_context->state == STATE_FAILED) {
