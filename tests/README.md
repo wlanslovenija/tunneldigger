@@ -2,6 +2,19 @@
 
 The automatic testing with tunneldigger uses lxc container and the python3 api of lxc.
 
+## Vagrantfile
+
+The test setup was tested with Ubuntu Bionic; you can use the Vagrantfile to set that up.
+
+```shell
+vagrant up
+vagrant ssh
+# Inside the VM:
+sudo su
+cd /tunneldigger/tests
+./tunneldigger.py --setup bionic
+CLIENT_REV=HEAD SERVER_REV=HEAD nosetests3 test_nose.py
+```
 
 ## Setup the environment
 
