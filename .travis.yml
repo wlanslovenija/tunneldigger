@@ -19,8 +19,6 @@ install:
   - sudo modprobe nf_conntrack_netlink
   - sudo iptables -t nat -L >/dev/null
   - sudo iptables -t filter -P FORWARD ACCEPT
-  - sudo /usr/bin/python3 ./tests/tunneldigger.py --setup bionic
-  - sudo /usr/bin/python3 ./tests/tunneldigger.py --setup trusty
 script:
   - sudo -E sh ./tests/travis.sh
 
