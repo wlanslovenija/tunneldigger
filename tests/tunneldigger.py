@@ -49,6 +49,7 @@ def setup_template(ubuntu_release):
         "bridge-utils",
         "libnetfilter-conntrack3",
         "python-dev",
+        "python3-dev",
         "libevent-dev",
         "ebtables",
         "python-virtualenv",
@@ -148,7 +149,7 @@ def generate_test_file():
 
 def testing(client_rev, server_rev):
     context = get_random_context()
-    print("generate a run for %s" % context)
+    print(("generate a run for %s" % context))
     client, server = prepare_containers(context, client_rev, server_rev)
     spid = run_server(server)
     cpid = run_client(client, ['-b', '172.16.16.1:8942'])

@@ -21,6 +21,7 @@ setup(
         'Intended Audience :: System Administrators',
         'License :: OSI Approved :: GNU Affero General Public License v3',
         'Programming Language :: Python',
+        'Programming Language :: Python :: 3 :: Only',
     ],
     include_package_data=True,
     zip_safe=False,
