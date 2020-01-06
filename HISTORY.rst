@@ -1,6 +1,13 @@
 vNEXT
 -----
 
+* Python 3 support.
+  Python 2 is no longer supported.
+  **NOTE:** If you are running the broker in a Python virtualenv you will have to
+  rebuild the virtualenv using a Python 3 interpreter.
+  This can be achieved by deleting the old virtualenv folder and recreating it.
+  For recreating the virtualenv you can refer to the "Installation" section of
+  the broker `installation chapter in the Tunneldigger documentation`_.
 * Fixed compatibility with new Linux kernels on the broker side: New kernels
   force the l2tpv3 session ID to be unique system-wide, while old tunneldigger
   clients have a hard-coded ID of 1 for both ends of the tunnel. When a new
@@ -16,6 +23,8 @@ vNEXT
   probes.
 * Improve client behavior on broker failure, and decrease some reconnect
   timeouts.
+
+.. _`installation chapter in the Tunneldigger documentation`: https://tunneldigger.readthedocs.io/en/latest/server.html#installation
 
 v0.3.0, 2017-Apr-02
 -------------------
