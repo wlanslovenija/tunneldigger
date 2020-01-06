@@ -137,10 +137,18 @@ If we assume that you are installing Tunneldigger under ``/srv/tunneldigger``
 (the scripts provided with Tunneldigger assume that as well), you can do::
 
     cd /srv/tunneldigger
-    virtualenv env_tunneldigger
+    virtualenv -p /usr/bin/python3 env_tunneldigger
 
-This creates the virtual environment. You can then checkout the Tunneldigger
-repository into ``/srv/tunneldigger/tunneldigger`` by doing::
+.. note::
+    Tunneldigger only supports Python 3.
+    
+    Using the above command ensures the virtualenv is created using a Python 3 interpreter.
+    In case the Python 3 interpreter you would like to use is not located at ``/usr/bin/python3`` you will have to adjust the path accordingly.
+    If your distribution uses Python 3 by default you can usually omit the ``-p`` parameter.
+
+This creates a virtual Python environment in the ``env_tunneldigger`` folder. This
+folder can be deleted and recreated as needed using the virtualenv command, should this be required.
+You can then checkout the Tunneldigger repository into ``/srv/tunneldigger/tunneldigger`` by doing::
 
     cd /srv/tunneldigger
     git clone https://github.com/wlanslovenija/tunneldigger.git
