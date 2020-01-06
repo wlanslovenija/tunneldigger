@@ -23,6 +23,7 @@ vNEXT
   probes.
 * Improve client behavior on broker failure, and decrease some reconnect
   timeouts.
+* Removed dependency on Netfilter.
 
 .. _`installation chapter in the Tunneldigger documentation`: https://tunneldigger.readthedocs.io/en/latest/server.html#installation
 
