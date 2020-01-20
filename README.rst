@@ -1,8 +1,13 @@
 Tunneldigger
 ============
 
+L2TPv3 VPN tunneling solution
+
 .. image:: https://travis-ci.org/wlanslovenija/tunneldigger.svg?branch=master
     :target: https://travis-ci.org/wlanslovenija/tunneldigger
+
+About
+-----
 
 Tunneldigger is one of the projects of `wlan slovenija`_ open wireless network.
 It is a simple VPN tunneling solution based on L2TPv3 tunnels supported in
@@ -10,43 +15,52 @@ recent Linux kernels.
 
 .. _wlan slovenija: https://wlan-si.net
 
-Documentation is found at:
+It consists of a client and a server portion referred to as the broker. The
+client is optimized to run on embedded devices such as wireless routers
+running OpenWrt_.
 
-http://tunneldigger.readthedocs.org/
+.. _OpenWrt: https://openwrt.org
 
-Opkg (OpenWrt) packages for both Tunneldigger client and broker are available at:
+The client is written in C to allow for smaller binary size whereas the server
+portion, referred to as the broker, is written in Python.
 
-https://github.com/wlanslovenija/firmware-packages-opkg
+Installation and Use
+--------------------
 
-Source Code, Issue Tracker and Mailing List
+Information on set up and use of Tunneldigger can be found in the
+documentation:
+
+https://tunneldigger.readthedocs.org/
+
+Source Code and Issue Tracker
 -------------------------------------------
 
-For development *wlan slovenija* open wireless network `development Trac`_ is
-used, so you can see `existing open tickets`_ or `open a new one`_ there. Source
-code is available on GitHub_. If you have any questions or if you want to
-discuss the project, use `development mailing list`_.
+Development happens on GitHub_ and issues can be filed in the `Issue tracker`_.
 
-.. _development Trac: https://dev.wlan-si.net/wiki/Tunneldigger
-.. _existing open tickets: https://dev.wlan-si.net/report/15
-.. _open a new one: https://dev.wlan-si.net/newticket
 .. _GitHub: https://github.com/wlanslovenija/tunneldigger
-.. _development mailing list: https://wlan-si.net/lists/info/development
+.. _Issue tracker: https://github.com/wlanslovenija/tunneldigger/issues
 
-Contributors
-------------
+License
+-------
 
-* `@kostko`_
-* `@lynxis`_
-* `@mitar`_
-* `@max-b`_
-* `@mehlix`_
-* `@valentt`_
-* `@papazoga`_
+Tunneldigger is licensed under AGPLv3_.
 
-.. _@kostko: https://github.com/kostko
-.. _@lynxis: https://github.com/lynxis
-.. _@mitar: https://github.com/mitar
-.. _@max-b: https://github.com/max-b
-.. _@mehlix: https://github.com/mehlis
-.. _@valentt: https://github.com/valentt
-.. _@papazoga: https://github.com/papazoga
+.. _AGPLv3: https://www.gnu.org/licenses/agpl-3.0.en.html
+
+Contributions
+-------------
+
+We welcome code and documentation contributions to Tunneldigger in the form of
+`Pull Requests`_ on GitHub where they can be reviewed and discussed by the
+community.
+We encourage everyone to check out any pending pull requests and offer comments
+or ideas as well.
+
+.. _Pull Requests: https://github.com/wlanslovenija/tunneldigger/pulls
+
+Tunneldigger is developed by a community of developers from many different
+backgrounds.
+
+You can visualize all code contributions using `GitHub Insights`_.
+
+.. _GitHub Insights: https://github.com/wlanslovenija/tunneldigger/graphs/contributors
