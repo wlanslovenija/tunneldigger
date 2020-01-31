@@ -135,6 +135,10 @@ class Pollable(object):
 
         assert len(msg_data) < 255
 
+        # The 2nd nibble of the 2nd byte is 3, for the L2TP version.
+        # The very first bit is 1, indicating that this is a control message.
+        # This is sufficient for the kernel to ignore this package.
+        # Also see <https://github.com/wlanslovenija/tunneldigger/pull/115#issuecomment-573668028>.
         data = b'\x80\x73\xA7\x01'
         data += struct.pack('!BB', msg_type, len(msg_data))
         data += msg_data
