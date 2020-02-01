@@ -9,6 +9,9 @@ import struct
 
 from . import protocol
 
+# Socket options.
+SO_BINDTODEVICE = 25
+
 # Logger.
 logger = logging.getLogger("tunneldigger.network")
 
@@ -32,12 +35,8 @@ class Pollable(object):
         """
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # The L2TP kernel driver's design requires each tunnel to have it's own socket.
-        # Since we want all tunnel and tunnel control traffic to use the same port for
-        # all clients we enable reuse of ports on the sockets we create.
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode('utf-8'))
         self.socket.bind(address)
+        self.socket.setsockopt(socket.SOL_SOCKET, SO_BINDTODEVICE, interface.encode('utf-8'))
 
         self.address = address
         self.interface = interface

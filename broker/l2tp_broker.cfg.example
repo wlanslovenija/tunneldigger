@@ -7,8 +7,16 @@ port=53,123,8942
 interface=lo
 ; Maximum number of tunnels that will be allowed by the broker
 max_tunnels=1024
+; Tunnel port base. This port is not visible to clients, but must be free on the server.
+; This port is used by the actual l2tp tunnel, but tunneldigger sets up NAT rules so that clients
+; can keep using the control port.
+port_base=20000
 ; Tunnel id base
 tunnel_id_base=100
+; Namespace (for running multiple brokers); note that you must also
+; configure disjunct ports, and tunnel identifiers in order for
+; namespacing to work
+namespace=default
 ; Reject connections if there are less than N seconds since the last connection.
 ; Can be less than a second (e.g., 0.1).
 connection_rate_limit=10
