@@ -44,9 +44,6 @@ def setup_template(ubuntu_release):
     lxc_run_command(container, ["apt-get", "dist-upgrade", "-y"])
 
     # tunneldigger requirements
-    # we install all requirements of past and present versions
-    # so that we can run both older and newer versions of the code
-    # with the same container setup
     pkg_to_install = [
         "iproute2",
         "bridge-utils",

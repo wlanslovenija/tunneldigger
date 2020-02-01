@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import find_packages, setup
 
-VERSION = '0.4.0.dev1'
+VERSION = '0.3.0'
 
 setup(
     name='tunneldigger-broker',
@@ -14,7 +14,7 @@ setup(
     url='https://github.com/wlanslovenija/tunneldigger',
     license='AGPLv3',
     package_dir={'': 'src'},
-    packages=find_packages(where='src'),
+    packages=find_packages(where='src', exclude=['_ffi_src', '_ffi_src.*']),
     package_data={},
     classifiers=[
         'Development Status :: 4 - Beta',
@@ -25,5 +25,16 @@ setup(
     ],
     include_package_data=True,
     zip_safe=False,
+    setup_requires=[
+        'cffi>=1.4.1',
+    ],
+    install_requires=[
+        'netfilter>=0.6.2',
+        'cffi>=1.4.1',
+    ],
     extras_require={},
+    cffi_modules=[
+        'src/_ffi_src/build_conntrack.py:ffibuilder',
+    ],
+    ext_package='tunneldigger_broker._ffi',
 )
