@@ -1481,7 +1481,7 @@ int asyncns_isdone(asyncns_t *asyncns, asyncns_query_t*q) {
 void asyncns_setuserdata(asyncns_t *asyncns, asyncns_query_t *q, void *userdata) {
     assert(q);
     assert(asyncns);
-    assert(q->asyncns = asyncns);
+    assert(q->asyncns == asyncns);
 
     q->userdata = userdata;
 }
@@ -1489,7 +1489,7 @@ void asyncns_setuserdata(asyncns_t *asyncns, asyncns_query_t *q, void *userdata)
 void* asyncns_getuserdata(asyncns_t *asyncns, asyncns_query_t *q) {
     assert(q);
     assert(asyncns);
-    assert(q->asyncns = asyncns);
+    assert(q->asyncns == asyncns);
 
     return q->userdata;
 }
