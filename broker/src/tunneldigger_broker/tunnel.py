@@ -350,7 +350,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
 
         if address != self.endpoint:
-            logger.warning("Protocol error: tunnel endpoint has changed.")
+            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
             return False
 
         if uuid != self.uuid:
