@@ -75,8 +75,6 @@ tunnel_manager = broker.TunnelManager(
     hook_manager=hook_manager,
     max_tunnels=config.getint('broker', 'max_tunnels'),
     tunnel_id_base=config.getint('broker', 'tunnel_id_base'),
-    tunnel_port_base=config.getint('broker', 'port_base'),
-    namespace=config.get('broker', 'namespace'),
     connection_rate_limit=config.getfloat('broker', 'connection_rate_limit'),
     pmtu_fixed=config.getint('broker', 'pmtu'),
     log_ip_addresses=config.getboolean('log', 'log_ip_addresses'),
@@ -85,8 +83,6 @@ tunnel_manager.initialize()
 
 logger.info("Maximum number of tunnels is %d." % tunnel_manager.max_tunnels)
 logger.info("Tunnel identifier base is %d." % tunnel_manager.tunnel_id_base)
-logger.info("Tunnel port base is %d." % tunnel_manager.tunnel_port_base)
-logger.info("Namespace is %s." % tunnel_manager.namespace)
 
 # Initialize one broker for each port.
 brokers = []

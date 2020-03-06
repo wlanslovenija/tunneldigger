@@ -35,7 +35,7 @@ the broker.
 Operating System
 ----------------
 
-The first thing you need is a recent (>= 2.6.36) Linux kernel that supports L2TPv3
+The first thing you need is a recent (>= 3.9) Linux kernel that supports L2TPv3
 tunnels. You can find out your linux kernel version using the command ``uname -a``.
 
 We assume the following instructions to work on the distributions listed below.
@@ -53,6 +53,11 @@ The following modules are required for Tunneldigger operation:
 * ``l2tp_core``
 * ``l2tp_eth``
 * ``l2tp_netlink``
+
+.. note::
+
+    Fedora and RHEL/CentOS blacklist some of these modules by default for security reasons.
+    Ensure you remove the blacklisting from ``/etc/modprobe.d/l2tp_eth-blacklist.conf`` and ``/etc/modprobe.d/l2tp_netlink-blacklist.conf``.
 
 Kernel Module Activation on Boot
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -102,9 +107,6 @@ Also the following Debian packages are required:
 
 * ``iproute``
 * ``bridge-utils``
-* ``libnetfilter-conntrack-dev``
-* ``libnfnetlink-dev``
-* ``libffi-dev``
 * ``python-dev``
 * ``libevent-dev``
 
@@ -124,11 +126,11 @@ not affect the versions that are installed for Tunneldigger.
 
 You can install all of the above simply by running on Debian::
 
-    sudo apt-get install iproute bridge-utils libnetfilter-conntrack-dev libnfnetlink-dev libffi-dev python-dev libevent-dev ebtables python-virtualenv
+    sudo apt-get install iproute bridge-utils python-dev libevent-dev ebtables python-virtualenv
 
 and for Fedora you can use this command::
 
-    sudo yum install iproute bridge-utils libnetfilter_conntrack python-devel libevent-devel ebtables libnl-devel python-pip python-virtualenv
+    sudo yum install iproute bridge-utils python-devel libevent-devel ebtables libnl-devel python-pip python-virtualenv
 
 Installation
 ------------
