@@ -26,8 +26,7 @@ def setup_template(ubuntu_release):
 
     if not container.defined:
         for i in range(0, 10): # retry a few times, this tends to fail spuriously on travis
-            if container.create("download", lxc.LXC_CREATE_QUIET,
-                                {"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
+            if container.create("download", args={"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
                 break
             sleep(5) # wait a bit before next attempt
         else:
@@ -44,6 +43,9 @@ def setup_template(ubuntu_release):
     lxc_run_command(container, ["apt-get", "dist-upgrade", "-y"])
 
     # tunneldigger requirements
+    # we install all requirements of past and present versions
+    # so that we can run both older and newer versions of the code
+    # with the same container setup
     pkg_to_install = [
         "iproute2",
         "bridge-utils",

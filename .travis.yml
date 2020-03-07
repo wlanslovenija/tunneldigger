@@ -15,6 +15,7 @@ install:
   - sudo modprobe l2tp_netlink
   - sudo modprobe l2tp_ip
   - sudo modprobe l2tp_eth
+  # Newer versions of the broker don't need the following but keep it around for cross-version testing
   - sudo modprobe nf_conntrack
   - sudo modprobe nf_conntrack_netlink
   - sudo iptables -t nat -L >/dev/null
