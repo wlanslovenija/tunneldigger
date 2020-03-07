@@ -231,6 +231,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Check if the tunnel is still alive.
         if time.time() - self.last_alive > 120:
+            logger.warning("Tunnel %d (%s) timed out", self.tunnel_id, self.uuid)
             self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_TIMEOUT)
 
     def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
@@ -240,7 +241,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param reason: Reason code for the tunnel being closed
         """
 
-        logger.info("Closing tunnel %d after %d seconds", self.tunnel_id, time.time() - self.created_time)
+        logger.info("Closing tunnel %d (%s) after %d seconds", self.tunnel_id, self.uuid, time.time() - self.created_time)
 
         # Run pre-down hook.
         self.broker.hook_manager.run_hook(
