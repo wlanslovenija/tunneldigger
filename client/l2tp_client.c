@@ -1199,13 +1199,13 @@ void context_process(l2tp_context *ctx)
           ctx->pmtu = ctx->probed_pmtu;
           context_session_set_mtu(ctx);
         }
-
-        // Notify the broker of the configured MTU.
-        char buffer[16];
-        char *buf = buffer;
-        put_u16(&buf, ctx->pmtu - L2TP_TUN_OVERHEAD);
-        context_send_packet(ctx, CONTROL_TYPE_PMTU_NTFY, (char*) &buffer, 2);
-
+        if (ctx->pmtu > 0) {
+          // Notify the broker of the configured MTU.
+          char buffer[16];
+          char *buf = buffer;
+          put_u16(&buf, ctx->pmtu - L2TP_TUN_OVERHEAD);
+          context_send_packet(ctx, CONTROL_TYPE_PMTU_NTFY, (char*) &buffer, 2);
+        }
         ctx->probed_pmtu = 0;
         ctx->timer_pmtu_collect = -1;
         ctx->timer_pmtu_xmit = -1;
