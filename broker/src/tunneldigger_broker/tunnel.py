@@ -138,8 +138,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.create_timer(self.keepalive, timeout=random.randrange(3, 15), interval=5)
         # Spawn PMTU measurement timer. The initial timeout is randomized to avoid all tunnels
         # from starting the measurements at the same time.
-        if self.automatic_pmtu:
-            self.create_timer(self.pmtu_discovery, timeout=random.randrange(1, 30))
+        self.create_timer(self.pmtu_discovery, timeout=random.randrange(5, 30))
 
         # Update MTU.
         self.update_mtu(initial=True)
@@ -162,7 +161,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
         Handle periodic PMTU discovery.
         """
-        assert self.automatic_pmtu
+        if not self.automatic_pmtu:
+            # Send our static MTU, and do not renew timer (so we never repeat this).
+            self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
+            return
 
         if self.pmtu_probe_size is not None and self.pmtu_probe_size <= self.pmtu_probe_acked_mtu:
             # No need to check lower PMTUs as we already received acknowledgement. Restart
