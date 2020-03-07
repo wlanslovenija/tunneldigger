@@ -288,10 +288,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         control message.
         """
 
-        if address != self.endpoint:
-            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
-            return False
-
         if uuid != self.uuid:
             logger.warning("Protocol error: tunnel UUID has changed.")
             return False
@@ -318,6 +314,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param msg_data: Message payload
         :param raw_length: Length of the raw message (including headers)
         """
+
+        if address != self.endpoint:
+            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
+            return False
 
         if super(Tunnel, self).message(address, msg_type, msg_data, raw_length):
             return True
