@@ -22,6 +22,7 @@ if [ "$OLD_REV" = "HEAD" ] ; then
 fi
 
 # finish setup
+export DOWNLOAD_KEYSERVER="keyserver.ubuntu.com" # we had a lot of intermittent failures with the default keyserver
 $(dirname $0)/tunneldigger.py --setup bionic
 if [[ "$OLD_UBUNTU" == "trusty" || "$SELECT" == "usage" ]]; then
     $(dirname $0)/tunneldigger.py --setup trusty

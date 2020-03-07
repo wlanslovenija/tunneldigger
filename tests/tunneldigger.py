@@ -25,10 +25,10 @@ def setup_template(ubuntu_release):
     container = lxc.Container("tunneldigger-base-{}".format(ubuntu_release))
 
     if not container.defined:
-        for i in range(0, 10): # retry a few times, this tends to fail spuriously on travis
+        for i in range(0, 5): # retry a few times, this tends to fail spuriously on travis
             if container.create("download", args={"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
                 break
-            sleep(5) # wait a bit before next attempt
+            sleep(10) # wait a bit before next attempt
         else:
             raise RuntimeError("failed to create container")
 
