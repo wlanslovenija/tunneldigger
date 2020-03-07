@@ -999,7 +999,11 @@ int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id, uint32_t se
 
 int context_session_set_mtu(l2tp_context *ctx)
 {
-  uint16_t mtu = ctx->pmtu - L2TP_TUN_OVERHEAD;
+  if (ctx->pmtu == 0 && ctx->peer_pmtu == 0)
+    return 0;
+  uint16_t mtu = 0xFFFF;
+  if (ctx->pmtu > 0)
+    mtu = ctx->pmtu - L2TP_TUN_OVERHEAD;
   if (ctx->peer_pmtu > 0 && ctx->peer_pmtu < mtu)
     mtu = ctx->peer_pmtu;
   syslog(LOG_INFO, "[%s:%s] Setting MTU to %d", ctx->broker_hostname, ctx->broker_port, (int) mtu);
