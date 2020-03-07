@@ -26,8 +26,7 @@ def setup_template(ubuntu_release):
 
     if not container.defined:
         for i in range(0, 10): # retry a few times, this tends to fail spuriously on travis
-            if container.create("download", lxc.LXC_CREATE_QUIET,
-                                {"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
+            if container.create("download", args={"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
                 break
             sleep(5) # wait a bit before next attempt
         else:
