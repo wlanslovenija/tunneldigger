@@ -207,3 +207,22 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
         """
 
         return self.tunnel_manager.create_tunnel(self, address, uuid, remote_tunnel_id, client_features)
+
+    def message(self, address, msg_type, msg_data, raw_length):
+        """
+        Called when a new protocol message is received.
+
+        :param address: Source address (host, port) tuple
+        :param msg_type: Message type
+        :param msg_data: Message payload
+        :param raw_length: Length of the raw message (including headers)
+        """
+
+        # Due to SO_REUSEPORT bugs, we also see messags here that really ought to
+        # go to an established tunnel.  So check the tunnels first.
+        for tunnel in self.tunnel_manager.tunnels.values():
+            if tunnel.address == self.address and tunnel.endpoint == address:
+                logger.warning("Protocol error: broker received tunnel message. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
+
+        # Fall back to normal broker processing.
+        return super(Broker, self).message(address, msg_type, msg_data, raw_length)
