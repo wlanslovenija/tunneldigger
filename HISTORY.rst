@@ -24,8 +24,11 @@ vNEXT
 * Improve client behavior on broker failure, and decrease some reconnect
   timeouts.
 * Removed dependency on Netfilter.
+* Removed NAT hack.  However, this means we now require a `very recent kernel`_
+  (>= 5.2.17, 5.3.1, 5.4+).
 
 .. _`installation chapter in the Tunneldigger documentation`: https://tunneldigger.readthedocs.io/en/latest/server.html#installation
+.. _very recent kernel: https://github.com/wlanslovenija/tunneldigger/issues/126
 
 v0.3.0, 2017-Apr-02
 -------------------
