@@ -3,10 +3,6 @@ import socket
 import time
 import traceback
 
-import conntrack
-import netfilter.table
-import netfilter.rule
-
 from . import l2tp, protocol, network, tunnel as td_tunnel
 
 # Logger.
@@ -23,8 +19,6 @@ class TunnelManager(object):
         hook_manager,
         max_tunnels,
         tunnel_id_base,
-        tunnel_port_base,
-        namespace,
         connection_rate_limit,
         pmtu_fixed,
         log_ip_addresses,
@@ -35,16 +29,12 @@ class TunnelManager(object):
         :param hook_manager: Hook manager
         :param max_tunnels: Maximum number of tunnels to allow
         :param tunnel_id_base: Base local tunnel identifier
-        :param tunnel_port_base: Base local tunnel port
-        :param namespace: Netfilter namespace to use
         """
 
         self.hook_manager = hook_manager
         self.max_tunnels = max_tunnels
         self.tunnel_id_base = tunnel_id_base
-        self.tunnel_ids = set(xrange(tunnel_id_base, tunnel_id_base + max_tunnels))
-        self.tunnel_port_base = tunnel_port_base
-        self.namespace = namespace
+        self.tunnel_ids = set(range(tunnel_id_base, tunnel_id_base + max_tunnels))
         self.tunnels = {}
         self.last_tunnel_created = None
         self.connection_rate_limit = connection_rate_limit
@@ -103,7 +93,7 @@ class TunnelManager(object):
         try:
             tunnel = td_tunnel.Tunnel(
                 broker=broker,
-                address=(broker.address[0], self.tunnel_port_base + tunnel_id),
+                address=broker.address,
                 endpoint=address,
                 uuid=uuid,
                 tunnel_id=tunnel_id,
@@ -117,11 +107,11 @@ class TunnelManager(object):
             self.last_tunnel_created = now
         except KeyboardInterrupt:
             raise
-        except l2tp.L2TPTunnelExists, e:
+        except l2tp.L2TPTunnelExists as e:
             # Do not return the tunnel identifier into the pool.
             logger.warning("Tunnel identifier %d already exists." % e.tunnel_id)
             return False
-        except l2tp.L2TPSessionExists, e:
+        except l2tp.L2TPSessionExists as e:
             # Return tunnel identifier into the pool.
             self.tunnel_ids.add(tunnel_id)
             logger.warning("Session identifier %d already exists." % e.session_id)
@@ -149,45 +139,6 @@ class TunnelManager(object):
         del self.tunnels[tunnel.tunnel_id]
 
     def initialize(self):
-        """
-        Sets up netfilter rules so new packets to the same port are redirected
-        into the per-tunnel socket.
-        """
-
-        prerouting_chain = "L2TP_PREROUTING_%s" % self.namespace
-        postrouting_chain = "L2TP_POSTROUTING_%s" % self.namespace
-        nat = netfilter.table.Table('nat')
-        self.rule_prerouting_jmp = netfilter.rule.Rule(jump=prerouting_chain)
-        self.rule_postrouting_jmp = netfilter.rule.Rule(jump=postrouting_chain)
-
-        try:
-            nat.flush_chain(prerouting_chain)
-            nat.delete_chain(prerouting_chain)
-        except netfilter.table.IptablesError:
-            pass
-
-        try:
-            nat.flush_chain(postrouting_chain)
-            nat.delete_chain(postrouting_chain)
-        except netfilter.table.IptablesError:
-            pass
-
-        nat.create_chain(prerouting_chain)
-        nat.create_chain(postrouting_chain)
-        try:
-            nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
-        except netfilter.table.IptablesError:
-            pass
-        nat.prepend_rule('PREROUTING', self.rule_prerouting_jmp)
-
-        try:
-            nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
-        except netfilter.table.IptablesError:
-            pass
-        nat.prepend_rule('POSTROUTING', self.rule_postrouting_jmp)
-
-        # Initialize connection tracking manager.
-        self.conntrack = conntrack.ConnectionManager()
         # Initialize netlink.
         self.netlink = l2tp.NetlinkInterface()
 
@@ -204,26 +155,16 @@ class TunnelManager(object):
 
     def close(self):
         """
-        Shuts down all managed tunnels and restores netfilter state. The tunnel
-        manager instance should not be used after calling this method.
+        Shuts down all managed tunnels. The tunnel manager instance
+        should not be used after calling this method.
         """
 
-        for tunnel in self.tunnels.values():
+        for tunnel in list(self.tunnels.values()):
             try:
                 tunnel.close()
             except:
                 traceback.print_exc()
 
-        # Restore netfilter rules.
-        nat = netfilter.table.Table('nat')
-        nat.delete_rule('PREROUTING', self.rule_prerouting_jmp)
-        nat.delete_rule('POSTROUTING', self.rule_postrouting_jmp)
-        nat.flush_chain('L2TP_PREROUTING_%s' % self.namespace)
-        nat.flush_chain('L2TP_POSTROUTING_%s' % self.namespace)
-        nat.delete_chain('L2TP_PREROUTING_%s' % self.namespace)
-        nat.delete_chain('L2TP_POSTROUTING_%s' % self.namespace)
-
-        del self.conntrack
         del self.netlink
 
 
@@ -245,12 +186,7 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
 
         self.tunnel_manager = tunnel_manager
         self.hook_manager = tunnel_manager.hook_manager
-        self.conntrack = tunnel_manager.conntrack
         self.netlink = tunnel_manager.netlink
-
-        # Clear out the connection tracking tables.
-        self.conntrack.killall(proto=socket.IPPROTO_UDP, src=self.address[0])
-        self.conntrack.killall(proto=socket.IPPROTO_UDP, dst=self.address[0])
 
     def get_tunnel_manager(self):
         """

@@ -40,7 +40,11 @@ lighttpd -f /tmp/lighttpd.conf
 
 # setup virtualenv
 cd /srv/
-virtualenv env_tunneldigger
+if grep -Fq 'Python :: 3 :: Only' /srv/tunneldigger/broker/setup.py; then
+    virtualenv -p /usr/bin/python3 env_tunneldigger
+else
+    virtualenv -p /usr/bin/python2 env_tunneldigger
+fi
 
 . /srv/env_tunneldigger/bin/activate
 if [ -f /srv/tunneldigger/broker/setup.py ]; then

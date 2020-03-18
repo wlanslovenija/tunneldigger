@@ -23,3 +23,10 @@ package. Source code for such OpenWrt package can be `found here`_.
 .. _OpenWrt: https://openwrt.org/
 
 You can add the whole repository as an OpenWrt feed and add package to your firmware.
+
+Configuration
+-------------
+
+* **MAX_BROKERS** (default: 10): Maximum number of brokers that can be handled in a single process.
+
+    make CFLAGS="-D MAX_BROKERS=20"

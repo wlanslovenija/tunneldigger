@@ -113,7 +113,7 @@ class HandshakeProtocolMixin(object):
             #           over (src_host, src_port, random_bytes)
             timestamp = struct.pack('!H', protocol_time())
             signed_value = '%s%s%s' % (address[0], address[1], timestamp)
-            signature = hmac.HMAC(SECRET_KEY, signed_value, hashlib.sha1).digest()[:6]
+            signature = hmac.HMAC(SECRET_KEY, signed_value.encode('utf-8'), hashlib.sha1).digest()[:6]
             self.write_message(address, CONTROL_TYPE_COOKIE, timestamp + signature)
         elif msg_type == CONTROL_TYPE_PREPARE:
             # Packet format:
@@ -130,7 +130,7 @@ class HandshakeProtocolMixin(object):
             timestamp = msg_data[offset:offset + 2]
             offset += 2
             signed_value = '%s%s%s' % (address[0], address[1], timestamp)
-            signature = hmac.HMAC(SECRET_KEY, signed_value, hashlib.sha1).digest()[:6]
+            signature = hmac.HMAC(SECRET_KEY, signed_value.encode('utf-8'), hashlib.sha1).digest()[:6]
             timestamp = struct.unpack('!H', timestamp)[0]
 
             # Reject message if more than 2 protocol ticks old.  One tick is 1 >> 6 = 64 seconds.
@@ -138,9 +138,9 @@ class HandshakeProtocolMixin(object):
                 return
             offset += 6
 
-            uuid_len = struct.unpack('!B', msg_data[offset])[0]
+            uuid_len = msg_data[offset]
             offset += 1
-            uuid = msg_data[offset:offset + uuid_len]
+            uuid = msg_data[offset:offset + uuid_len].decode('utf-8')
             offset += uuid_len
 
             # Parse optional data

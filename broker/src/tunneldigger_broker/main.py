@@ -1,4 +1,4 @@
-import ConfigParser
+import configparser
 import logging
 import logging.config
 import os
@@ -8,18 +8,18 @@ import sys
 from . import broker, eventloop, hooks
 
 if os.getuid() != 0:
-    print "ERROR: The tunneldigger broker must be run as root."
+    print("ERROR: The tunneldigger broker must be run as root.")
     sys.exit(1)
 
 # Load configuration.
-config = ConfigParser.SafeConfigParser()
+config = configparser.ConfigParser()
 try:
     config.read(sys.argv[1])
 except IOError:
-    print "ERROR: Failed to open the specified configuration file '%s'!" % sys.argv[1]
+    print("ERROR: Failed to open the specified configuration file '%s'!" % sys.argv[1])
     sys.exit(1)
 except IndexError:
-    print "ERROR: First argument must be a configuration file path!"
+    print("ERROR: First argument must be a configuration file path!")
     sys.exit(1)
 
 # Configure logging.
@@ -64,7 +64,7 @@ for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-chan
         script = config.get('hooks', hook).strip()
         if not script:
             continue
-    except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+    except (configparser.NoOptionError, configparser.NoSectionError):
         continue
 
     hook_manager.register_hook(hook, script)
@@ -75,8 +75,6 @@ tunnel_manager = broker.TunnelManager(
     hook_manager=hook_manager,
     max_tunnels=config.getint('broker', 'max_tunnels'),
     tunnel_id_base=config.getint('broker', 'tunnel_id_base'),
-    tunnel_port_base=config.getint('broker', 'port_base'),
-    namespace=config.get('broker', 'namespace'),
     connection_rate_limit=config.getfloat('broker', 'connection_rate_limit'),
     pmtu_fixed=config.getint('broker', 'pmtu'),
     log_ip_addresses=config.getboolean('log', 'log_ip_addresses'),
@@ -85,8 +83,6 @@ tunnel_manager.initialize()
 
 logger.info("Maximum number of tunnels is %d." % tunnel_manager.max_tunnels)
 logger.info("Tunnel identifier base is %d." % tunnel_manager.tunnel_id_base)
-logger.info("Tunnel port base is %d." % tunnel_manager.tunnel_port_base)
-logger.info("Namespace is %s." % tunnel_manager.namespace)
 
 # Initialize one broker for each port.
 brokers = []

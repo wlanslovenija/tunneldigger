@@ -236,7 +236,9 @@ typedef struct {
 } broker_cfg;
 
 // Maximum number of brokers that can be handled in a single process.
-#define MAX_BROKERS 10
+#ifndef MAX_BROKERS
+  #define MAX_BROKERS 10
+#endif
 
 // Forward declarations.
 void context_delete_tunnel(l2tp_context *ctx);

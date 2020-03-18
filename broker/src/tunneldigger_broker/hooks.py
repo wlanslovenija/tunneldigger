@@ -55,7 +55,7 @@ class HookProcess(object):
         Closes the hook process.
         """
 
-        for line in self.buffer.getvalue().split('\n'):
+        for line in self.buffer.getvalue().decode('utf-8').split('\n'):
             if not line:
                 continue
 
@@ -118,7 +118,7 @@ class HookManager(object):
 
 
         def sigchld_handler(signal_number, frame):
-            os.write(pipe_w, '\x00')
+            os.write(pipe_w, b'\x00')
 
         signal.signal(signal.SIGCHLD, sigchld_handler)
         event_loop.register(self, pipe_r, select.EPOLLIN)
@@ -153,7 +153,7 @@ class HookManager(object):
             process = HookProcess(name, script, args)
             process.register(self.event_loop)
             self.processes[process.process.pid] = process
-        except OSError, e:
+        except OSError as e:
             logger.error("Error while executing script '%s': %s" % (script, e))
 
     def close(self):
