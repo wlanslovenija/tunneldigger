@@ -5,13 +5,15 @@ address=127.0.0.1
 port=53,123,8942
 ; Interface with that IP address
 interface=lo
-; Maximum number of tunnels that will be allowed by the broker
-max_tunnels=1024
+; Maximum number of tunnels that will be allowed by the broker.
+; On a cheap VPS, more than 256 tunnels usually do not make sense.
+; Physical machines can take more.
+max_tunnels=256
 ; Tunnel id base
 tunnel_id_base=100
 ; Reject connections if there are less than N seconds since the last connection.
 ; Can be less than a second (e.g., 0.1).
-connection_rate_limit=10
+connection_rate_limit=0.2
 ; Set PMTU to a fixed value.  Use 0 for automatic PMTU discovery.  A non-0 value also disables
 ; PMTU discovery on the client side, by having the server not respond to client-side PMTU
 ; discovery probes.
