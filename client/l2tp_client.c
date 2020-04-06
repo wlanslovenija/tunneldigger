@@ -249,7 +249,6 @@ void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len);
 void context_send_reliable_packet(l2tp_context *ctx, uint8_t type, char *payload, uint8_t len);
 int context_setup_tunnel(l2tp_context *ctx, uint32_t peer_tunnel_id, uint32_t server_features);
 void context_free(l2tp_context *ctx);
-void broker_select_one(broker_cfg one_broker);
 void broker_select(broker_cfg *brokers, int broker_cnt);
 
 static l2tp_context *main_context = NULL;
@@ -435,13 +434,15 @@ int context_reinitialize(l2tp_context *ctx)
 
     rc = setsockopt(ctx->fd, SOL_SOCKET, SO_BINDTODEVICE, ctx->bind_iface, strlen(ctx->bind_iface) + 1);
     if (rc != 0) {
-      syslog(LOG_ERR, "Failed to bind to device!");
+      syslog(LOG_ERR, "[%s:%s] Failed to bind to device!",
+            ctx->broker_hostname, ctx->broker_port);
       return -1;
     }
   }
 
   if (bind(ctx->fd, (struct sockaddr*) &ctx->local_endpoint, sizeof(ctx->local_endpoint)) < 0) {
-    syslog(LOG_ERR, "Failed to bind to local endpoint - check WAN connectivity!");
+    syslog(LOG_ERR, "[%s:%s] Failed to bind to local endpoint - check WAN connectivity!",
+            ctx->broker_hostname, ctx->broker_port);
     return -1;
   }
 
@@ -501,7 +502,8 @@ void context_start_connect(l2tp_context *ctx)
   ctx->timer_resolving = timer_now();
 
   if (!ctx->broker_resq) {
-    syslog(LOG_ERR, "Failed to start name resolution!");
+    syslog(LOG_ERR, "[%s:%s] Failed to start name resolution!",
+            ctx->broker_hostname, ctx->broker_port);
     return;
   }
 }
@@ -536,8 +538,8 @@ void context_setup_limits(l2tp_context *ctx)
 {
   // Configure downstream bandwidth limit.
   if (ctx->limit_bandwidth_down > 0) {
-    syslog(LOG_INFO, "Requesting the broker to configure downstream bandwidth limit of %d kbps.",
-      ctx->limit_bandwidth_down);
+    syslog(LOG_INFO, "[%s:%s] Requesting the broker to configure downstream bandwidth limit of %d kbps.",
+      ctx->broker_hostname, ctx->broker_port, ctx->limit_bandwidth_down);
     context_limit_send_simple_request(ctx, LIMIT_TYPE_BANDWIDTH_DOWN, ctx->limit_bandwidth_down);
   }
 }
@@ -580,7 +582,7 @@ void context_process_control_packet(l2tp_context *ctx)
         // Broker usage information.  We also received this in STATE_STANBY in case we first got
         // a COOKIE, but later also received a USAGE.
         ctx->usage = parse_u16(&buf);
-        syslog(LOG_DEBUG, "Broker usage of %s:%s: %u\n", ctx->broker_hostname, ctx->broker_port, ctx->usage);
+        syslog(LOG_DEBUG, "[%s:%s] Broker usage: %u\n", ctx->broker_hostname, ctx->broker_port, ctx->usage);
 
         // Mark the connection as being available for later establishment.
         ctx->state = STATE_STANBDY;
@@ -611,15 +613,19 @@ void context_process_control_packet(l2tp_context *ctx)
       }
       if (ctx->state == STATE_GET_TUNNEL) {
         if (payload_length > 0)
-          syslog(LOG_WARNING, "Received error response from broker with errorcode %d!", error_code);
+          syslog(LOG_WARNING, "[%s:%s] Received error response from broker with errorcode %d!",
+            ctx->broker_hostname, ctx->broker_port, error_code);
         else
-          syslog(LOG_WARNING, "Received error response from broker!");
+          syslog(LOG_WARNING, "[%s:%s] Received error response from broker!",
+            ctx->broker_hostname, ctx->broker_port);
         ctx->state = STATE_FAILED; // let the main loop restart everything
       } else if (ctx->state == STATE_KEEPALIVE) {
         if (payload_length > 0)
-          syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel with errorcode %d!", error_code);
+          syslog(LOG_ERR, "[%s:%s] Broker sent us a teardown request, closing tunnel with errorcode %d!",
+            ctx->broker_hostname, ctx->broker_port, error_code);
         else
-          syslog(LOG_ERR, "Broker sent us a teardown request, closing tunnel!");
+          syslog(LOG_ERR, "[%s:%s] Broker sent us a teardown request, closing tunnel!",
+            ctx->broker_hostname, ctx->broker_port);
         context_close_tunnel(ctx, ERROR_REASON_OTHER_REQUEST);
       }
       break;
@@ -635,10 +641,12 @@ void context_process_control_packet(l2tp_context *ctx)
             server_features = parse_u32(&buf);
 
         if (context_setup_tunnel(ctx, remote_tunnel_id, server_features) < 0) {
-          syslog(LOG_ERR, "Unable to create local L2TP tunnel!");
+          syslog(LOG_ERR, "[%s:%s] Unable to create local L2TP tunnel!",
+            ctx->broker_hostname, ctx->broker_port);
           ctx->state = STATE_FAILED; // let the main loop restart everything
         } else {
-          syslog(LOG_INFO, "Tunnel successfully established.");
+          syslog(LOG_INFO, "[%s:%s] Tunnel successfully established.",
+            ctx->broker_hostname, ctx->broker_port);
           context_call_hook(ctx, "session.up");
           ctx->tunnel_up_since = timer_now();
           ctx->state = STATE_KEEPALIVE;
@@ -776,13 +784,16 @@ void context_send_raw_packet(l2tp_context *ctx, char *packet, uint8_t len)
       case EINVAL: {
         // This may happen when the underlying interface is removed. In this case we
         // need to bind the socket again and re-initialize the context.
-        syslog(LOG_WARNING, "Failed to send() control packet, interface disappeared?");
-        syslog(LOG_WARNING, "Forcing tunnel reinitialization.");
+        syslog(LOG_WARNING, "[%s:%s] Failed to send() control packet, interface disappeared?",
+            ctx->broker_hostname, ctx->broker_port);
+        syslog(LOG_WARNING, "[%s:%s] Forcing tunnel reinitialization.",
+            ctx->broker_hostname, ctx->broker_port);
         ctx->state = STATE_FAILED;
         break;
       }
       default: {
-        syslog(LOG_WARNING, "Failed to send() control packet (errno=%d, type=%x)!", errno, packet[OFFSET_CONTROL_TYPE]);
+        syslog(LOG_WARNING, "[%s:%s] Failed to send() control packet (errno=%d, type=%x)!",
+            ctx->broker_hostname, ctx->broker_port, errno, packet[OFFSET_CONTROL_TYPE]);
         break;
       }
     }
@@ -826,7 +837,8 @@ void context_send_pmtu_probe(l2tp_context *ctx, size_t size)
         break;
       }
       default: {
-        syslog(LOG_WARNING, "Failed to send() PMTU probe packet of size %zu (errno=%d)!", size, errno);
+        syslog(LOG_WARNING, "[%s:%s] Failed to send() PMTU probe packet of size %zu (errno=%d)!",
+          ctx->broker_hostname, ctx->broker_port, size, errno);
         break;
       }
     }
@@ -898,7 +910,8 @@ void context_delete_tunnel(l2tp_context *ctx)
   if (ioctl(ctx->fd, SIOCGIFFLAGS, &ifr) == 0) {
     ifr.ifr_flags &= ~IFF_UP;
     if (ioctl(ctx->fd, SIOCSIFFLAGS, &ifr) < 0) {
-      syslog(LOG_WARNING, "Failed to take down interface %s (errno=%d).", ifr.ifr_name, errno);
+      syslog(LOG_WARNING, "[%s:%s] Failed to take down interface %s (errno=%d).",
+        ctx->broker_hostname, ctx->broker_port, ifr.ifr_name, errno);
     }
   }
 
@@ -989,7 +1002,7 @@ int context_session_set_mtu(l2tp_context *ctx)
   uint16_t mtu = ctx->pmtu - L2TP_TUN_OVERHEAD;
   if (ctx->peer_pmtu > 0 && ctx->peer_pmtu < mtu)
     mtu = ctx->peer_pmtu;
-  syslog(LOG_INFO, "Setting MTU to %d", (int) mtu);
+  syslog(LOG_INFO, "[%s:%s] Setting MTU to %d", ctx->broker_hostname, ctx->broker_port, (int) mtu);
 
   // Update the device MTU.
   struct ifreq ifr;
@@ -1001,8 +1014,8 @@ int context_session_set_mtu(l2tp_context *ctx)
   strncpy(ifr.ifr_name, ctx->tunnel_iface, sizeof(ifr.ifr_name));
   ifr.ifr_mtu = mtu;
   if (ioctl(ctx->fd, SIOCSIFMTU, &ifr) < 0) {
-    syslog(LOG_WARNING, "Failed to set MTU to %d on device %s (errno=%d)!", (int) mtu,
-      ifr.ifr_name, errno);
+    syslog(LOG_WARNING, "[%s:%s] Failed to set MTU to %d on device %s (errno=%d)!",
+      ctx->broker_hostname, ctx->broker_port, (int) mtu,  ifr.ifr_name, errno);
     return -1;
   }
 
@@ -1033,13 +1046,6 @@ void context_close_tunnel(l2tp_context *ctx, uint8_t reason)
   context_call_hook(ctx, "session.down");
   context_delete_tunnel(ctx);
   ctx->state = STATE_FAILED;
-}
-
-void broker_select_one(broker_cfg one_broker)
-{
-  broker_cfg broker[1];
-  broker[0] = one_broker;
-  broker_select(broker, 1);
 }
 
 void broker_select(broker_cfg *brokers, int broker_cnt)
@@ -1084,9 +1090,11 @@ void context_process(l2tp_context *ctx)
   switch (ctx->state) {
     case STATE_REINIT: {
       if (is_timeout(&ctx->timer_reinit, 2)) {
-        syslog(LOG_INFO, "Reinitializing tunnel context.");
+        syslog(LOG_INFO, "[%s:%s] Reinitializing tunnel context.",
+          ctx->broker_hostname, ctx->broker_port);
         if (context_reinitialize(ctx) < 0) {
-          syslog(LOG_ERR, "Unable to reinitialize the context!");
+          syslog(LOG_ERR, "[%s:%s] Unable to reinitialize the context!",
+            ctx->broker_hostname, ctx->broker_port);
         }
       }
       if (ctx->state != STATE_RESOLVING)
@@ -1103,7 +1111,8 @@ void context_process(l2tp_context *ctx)
         int status = asyncns_getaddrinfo_done(asyncns_context, ctx->broker_resq, &result);
 
         if (status != 0) {
-          syslog(LOG_ERR, "Failed to resolve hostname '%s'.", ctx->broker_hostname);
+          syslog(LOG_ERR, "[%s:%s] Failed to resolve hostname.",
+            ctx->broker_hostname, ctx->broker_port);
           /* TODO: memory leak - asyncns_getaddrinfo_done() does not free in all error cases ctx->broker_resp.
            * Fix asyncns - remove free() from asyncns_getaddrinfo_done()
            */
@@ -1112,7 +1121,8 @@ void context_process(l2tp_context *ctx)
           return;
         } else {
           if (connect(ctx->fd, result->ai_addr, result->ai_addrlen) < 0) {
-            syslog(LOG_ERR, "Failed to connect to remote endpoint - check WAN connectivity!");
+            syslog(LOG_ERR, "[%s:%s] Failed to connect to remote endpoint - check WAN connectivity!",
+              ctx->broker_hostname, ctx->broker_port);
             ctx->state = STATE_REINIT;
           } else {
             ctx->state = STATE_GET_USAGE;
@@ -1121,7 +1131,8 @@ void context_process(l2tp_context *ctx)
           ctx->broker_resq = NULL;
         }
       } else if (is_timeout(&ctx->timer_resolving, 2)) {
-        syslog(LOG_ERR, "Hostname resolution timed out.");
+        syslog(LOG_ERR, "[%s:%s] Hostname resolution timed out.",
+          ctx->broker_hostname, ctx->broker_port);
 
         if (ctx->broker_resq)
           asyncns_cancel(asyncns_context, ctx->broker_resq);
@@ -1209,7 +1220,8 @@ void context_process(l2tp_context *ctx)
       while (msg != NULL) {
         if (is_timeout(&msg->timer_rexmit, 1)) {
           if (++msg->retries >= 10) {
-            syslog(LOG_WARNING, "Dropping message that has been retried too many times.");
+            syslog(LOG_WARNING, "[%s:%s] Dropping message that has been retried too many times.",
+              ctx->broker_hostname, ctx->broker_port);
 
             if (prev != NULL) {
               prev->next = msg->next;
@@ -1230,7 +1242,8 @@ void context_process(l2tp_context *ctx)
 
       // Check if the tunnel is still alive.
       if (timer_now() - ctx->last_alive > 60) {
-        syslog(LOG_WARNING, "Tunnel has timed out, closing down interface.");
+        syslog(LOG_WARNING, "[%s:%s] Tunnel has timed out, closing down interface.",
+            ctx->broker_hostname, ctx->broker_port);
         context_close_tunnel(ctx, ERROR_REASON_TIMEOUT);
       }
       break;
@@ -1406,7 +1419,8 @@ int main(int argc, char **argv)
         tunnel_iface, bind_iface_opt, hook, tunnel_id, limit_bandwidth_down);
 
       if (!brokers[i].ctx) {
-        syslog(LOG_ERR, "Unable to initialize tunneldigger context! Retrying in 5 seconds...");
+        syslog(LOG_ERR, "[%s:%s] Unable to initialize tunneldigger context! Retrying in 5 seconds...",
+            brokers[i].address, brokers[i].port);
         sleep(5);
         continue;
       }
@@ -1435,7 +1449,7 @@ int main(int argc, char **argv)
     for (i = 0; i < broker_cnt; i++) {
       if (brokers[i].broken) {
         // Inhibit hostname resolution and connect process.
-        syslog(LOG_INFO, "Not trying %s:%s again as it broke last time we tried.",
+        syslog(LOG_INFO, "[%s:%s] Not trying broker again as it broke last time we tried.",
           brokers[i].address, brokers[i].port);
         brokers[i].ctx->state = STATE_FAILED;
       }
@@ -1448,7 +1462,7 @@ int main(int argc, char **argv)
     int ready_cnt = 0;
     for (;;) {
       ready_cnt = 0;
-      broker_select(brokers, broker_cnt);
+      broker_select(brokers, broker_cnt); // poll from all FDs
       for (i = 0; i < broker_cnt; i++) {
         context_process(brokers[i].ctx);
       }
@@ -1477,6 +1491,7 @@ int main(int argc, char **argv)
       continue;
     }
 
+    // Henceforth, brokers[i] is the active broker.
     main_context = brokers[i].ctx;
     syslog(LOG_INFO, "Selected %s:%s as the best broker.", brokers[i].address,
       brokers[i].port);
@@ -1493,11 +1508,12 @@ int main(int argc, char **argv)
     // not recover after 15 seconds, restart the broker selection process.
     time_t timer_establish = timer_now();
     for (;;) {
-      broker_select_one(brokers[i]);
+      broker_select(&brokers[i], 1); // poll from this FD
       context_process(main_context);
 
       if (main_context->state == STATE_FAILED) {
-        syslog(LOG_ERR, "Connection to %s lost.", main_context->broker_hostname);
+        syslog(LOG_ERR, "[%s:%s] Connection lost.",
+          main_context->broker_hostname, main_context->broker_port);
         break;
       }
 
@@ -1513,7 +1529,8 @@ int main(int argc, char **argv)
       if (is_timeout(&timer_establish, 15)) {
         if (main_context->state != STATE_KEEPALIVE) {
           // Tunnel is not established yet, skip to the next broker.
-          syslog(LOG_ERR, "Connection with broker not established after 15 seconds, restarting broker selection...");
+          syslog(LOG_ERR, "[%s:%s] Connection not established after 15 seconds, restarting broker selection...",
+            main_context->broker_hostname, main_context->broker_port);
           break;
         }
 
