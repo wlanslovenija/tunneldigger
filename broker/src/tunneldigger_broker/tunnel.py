@@ -233,6 +233,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Check if the tunnel is still alive.
         if time.time() - self.last_alive > 120:
+            logger.warning("Tunnel %d (%s) timed out", self.tunnel_id, self.uuid)
             self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_TIMEOUT)
 
     def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
@@ -242,7 +243,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param reason: Reason code for the tunnel being closed
         """
 
-        logger.info("Closing tunnel %d after %d seconds", self.tunnel_id, time.time() - self.created_time)
+        logger.info("Closing tunnel %d (%s) after %d seconds", self.tunnel_id, self.uuid, time.time() - self.created_time)
 
         # Run pre-down hook.
         self.broker.hook_manager.run_hook(
@@ -289,10 +290,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         control message.
         """
 
-        if address != self.endpoint:
-            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
-            return False
-
         if uuid != self.uuid:
             logger.warning("Protocol error: tunnel UUID has changed.")
             return False
@@ -319,6 +316,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param msg_data: Message payload
         :param raw_length: Length of the raw message (including headers)
         """
+
+        if address != self.endpoint:
+            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
+            return False
 
         if super(Tunnel, self).message(address, msg_type, msg_data, raw_length):
             return True
