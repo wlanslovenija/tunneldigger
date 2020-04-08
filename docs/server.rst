@@ -35,8 +35,13 @@ the broker.
 Operating System
 ----------------
 
-The first thing you need is a recent (>= 3.9) Linux kernel that supports L2TPv3
+The first thing you need is a recent (>= 5.2.17, 5.3.1, 5.4+) Linux kernel that supports L2TPv3
 tunnels. You can find out your linux kernel version using the command ``uname -a``.
+Older kernels unfortunately have a bug that makes them `not work properly`_.  For those kernel,
+we are maintaining the `legacy branch`_.
+
+.. _not work properly: https://github.com/wlanslovenija/tunneldigger/issues/126
+.. _legacy branch: https://github.com/wlanslovenija/tunneldigger/tree/legacy
 
 We assume the following instructions to work on the distributions listed below.
 You are welcome to add your distribution if the instructions work and to edit them to make them work.
