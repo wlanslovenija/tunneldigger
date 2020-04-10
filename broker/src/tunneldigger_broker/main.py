@@ -59,7 +59,7 @@ hook_manager = hooks.HookManager(
     event_loop=event_loop,
     log_arguments=config.getboolean('log', 'log_ip_addresses'),
 )
-for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-changed'):
+for hook in ('session.up', 'session.pre-down', 'session.down', 'session.mtu-changed', 'broker.tunnel-connection-threshold'):
     try:
         script = config.get('hooks', hook).strip()
         if not script:
@@ -76,6 +76,8 @@ tunnel_manager = broker.TunnelManager(
     max_tunnels=config.getint('broker', 'max_tunnels'),
     tunnel_id_base=config.getint('broker', 'tunnel_id_base'),
     connection_rate_limit=config.getfloat('broker', 'connection_rate_limit'),
+    connection_rate_limit_per_ip_count=config.getint('broker', 'connection_rate_limit_per_ip_count'),
+    connection_rate_limit_per_ip_time=config.getfloat('broker', 'connection_rate_limit_per_ip_time'),
     pmtu_fixed=config.getint('broker', 'pmtu'),
     log_ip_addresses=config.getboolean('log', 'log_ip_addresses'),
 )

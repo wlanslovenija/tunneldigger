@@ -14,6 +14,9 @@ tunnel_id_base=100
 ; Reject connections if there are less than N seconds since the last connection.
 ; Can be less than a second (e.g., 0.1).
 connection_rate_limit=0.2
+; Runs broker.tunnel-connection-threshold if a IP address connect more than COUNT in TIME seconds. (disabled when values 0)
+connection_rate_limit_per_ip_count=30
+connection_rate_limit_per_ip_time=60
 ; Set PMTU to a fixed value.  Use 0 for automatic PMTU discovery.  A non-0 value also disables
 ; PMTU discovery on the client side, by having the server not respond to client-side PMTU
 ; discovery probes.
@@ -47,4 +50,6 @@ session.pre-down=
 session.down=
 ; Called after the tunnel MTU gets changed because of PMTU discovery
 session.mtu-changed=
+; Called after the tunnel connection rate per ip limit exceeded
+broker.tunnel-connection-threshold=
 
