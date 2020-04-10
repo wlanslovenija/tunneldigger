@@ -2,6 +2,7 @@ import logging
 import socket
 import time
 import traceback
+from collections import deque
 
 from . import l2tp, protocol, network, tunnel as td_tunnel
 
@@ -20,6 +21,8 @@ class TunnelManager(object):
         max_tunnels,
         tunnel_id_base,
         connection_rate_limit,
+        connection_rate_limit_per_ip_count,
+        connection_rate_limit_per_ip_time,
         pmtu_fixed,
         log_ip_addresses,
     ):
@@ -37,7 +40,10 @@ class TunnelManager(object):
         self.tunnel_ids = set(range(tunnel_id_base, tunnel_id_base + max_tunnels))
         self.tunnels = {}
         self.last_tunnel_created = None
+        self.last_tunnel_created_per_ip = {} # Key: IP address Value: deque collection with timestamps
         self.connection_rate_limit = connection_rate_limit
+        self.connection_rate_limit_per_ip_count = connection_rate_limit_per_ip_count
+        self.connection_rate_limit_per_ip_time = connection_rate_limit_per_ip_time
         self.pmtu_fixed = pmtu_fixed
         self.require_unique_session_id = False
         self.log_ip_addresses = log_ip_addresses
@@ -76,6 +82,32 @@ class TunnelManager(object):
             tunnel_str = "%s:%s (%s)" % (address[0], address[1], uuid)
         else:
             tunnel_str = "(%s)" % uuid
+
+        # Rate limit creation of new tunnels with the same IP address.
+        # Runs broker.tunnel-connection-threshold hook if threshold exceeded:
+        if self.connection_rate_limit_per_ip_count > 0 and self.connection_rate_limit_per_ip_time > 0:
+            if address[0] not in self.last_tunnel_created_per_ip:
+                # Create deque collection if IP address does not exist in dict
+                self.last_tunnel_created_per_ip[address[0]] = deque([], self.connection_rate_limit_per_ip_count)
+            tunnelCollection = self.last_tunnel_created_per_ip[address[0]]
+            if len(tunnelCollection) >= self.connection_rate_limit_per_ip_count:
+                scale_delta = now - tunnelCollection[0] # Delta of oldest timestamp in collection and now
+                if scale_delta <= self.connection_rate_limit_per_ip_time:
+                    logger.info("Tunnel {0} connection threshold exceeded ({1} in {2} ({3}) seconds). Running hook".format(
+                        tunnel_str,
+                        self.connection_rate_limit_per_ip_count,
+                        int(scale_delta),
+                        self.connection_rate_limit_per_ip_time
+                    ))
+                    broker.hook_manager.run_hook(
+                        'broker.tunnel-connection-threshold',
+                        address[0],
+                        address[1],
+                        uuid,
+                    )
+                    del self.last_tunnel_created_per_ip[address[0]]
+                    return False
+            tunnelCollection.append(now) # Append current timestamp at the end of deque collection so the oldest (first) will be dropped
 
         # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
         # broker from being overwhelmed with creating tunnels, especially on embedded devices.

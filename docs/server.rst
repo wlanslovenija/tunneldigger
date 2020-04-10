@@ -204,6 +204,9 @@ There are currently four different hooks, namely:
 * ``session.mtu-changed`` is called after the broker's path MTU discovery determines that the tunnel's MTU has changed
   and should be adjusted (example is found under ``scripts/mtu_changed.sh``)
 
+* ``broker.tunnel-connection-threshold`` is called when a IP address tries to connect ``connection_rate_limit_per_ip_count``
+  times within ``connection_rate_limit_per_ip_time`` seconds.
+
 Please look at all the example hook scripts carefully and try to understand
 them before use. They should be considered configuration and some things in
 them are hardcoded for our deployment. You will probably have some different
