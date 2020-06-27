@@ -87,17 +87,18 @@ class TunnelManager(object):
         # Runs broker.tunnel-connection-threshold hook if threshold exceeded:
         if self.connection_rate_limit_per_ip_count > 0 and self.connection_rate_limit_per_ip_time > 0:
             if address[0] not in self.last_tunnel_created_per_ip:
-                # Create deque collection if IP address does not exist in dict
+                # Create deque with max size if IP address does not exist in dict
                 self.last_tunnel_created_per_ip[address[0]] = deque([], self.connection_rate_limit_per_ip_count)
             tunnelCollection = self.last_tunnel_created_per_ip[address[0]]
             if len(tunnelCollection) >= self.connection_rate_limit_per_ip_count:
-                scale_delta = now - tunnelCollection[0] # Delta of oldest timestamp in collection and now
-                if scale_delta <= self.connection_rate_limit_per_ip_time:
-                    logger.info("Tunnel {0} connection threshold exceeded ({1} in {2} ({3}) seconds). Running hook".format(
+                # We have "count" many connection attempts registered from this IP.
+                # Check if they are all within "time".
+                delta = now - tunnelCollection[0] # Delta of oldest timestamp in collection and now
+                if delta <= self.connection_rate_limit_per_ip_time:
+                    logger.info("Rejecting tunnel {0} due to per-IP rate limiting: {1} attempts in {2} seconds".format(
                         tunnel_str,
-                        self.connection_rate_limit_per_ip_count,
-                        int(scale_delta),
-                        self.connection_rate_limit_per_ip_time
+                        self.connection_rate_limit_per_ip_count+1,
+                        int(delta),
                     ))
                     broker.hook_manager.run_hook(
                         'broker.tunnel-connection-threshold',
@@ -105,14 +106,17 @@ class TunnelManager(object):
                         address[1],
                         uuid,
                     )
-                    del self.last_tunnel_created_per_ip[address[0]]
+                    # Keep the data in the queue. The client may connect again once TIME seconds
+                    # passed since the oldest registered connection attempt.
+                    # (This rejected attempt does not count to that.)
                     return False
-            tunnelCollection.append(now) # Append current timestamp at the end of deque collection so the oldest (first) will be dropped
+            # Append current timestamp at the end of deque collection so the oldest (first) will be dropped.
+            tunnelCollection.append(now)
 
         # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
         # broker from being overwhelmed with creating tunnels, especially on embedded devices.
         if self.last_tunnel_created is not None and now - self.last_tunnel_created < self.connection_rate_limit:
-            logger.info("Rejecting tunnel %s due to rate limiting" % tunnel_str)
+            logger.info("Rejecting tunnel %s due to global rate limiting: last tunnel was created too recently" % tunnel_str)
             return False
 
         try:
