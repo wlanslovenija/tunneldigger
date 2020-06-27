@@ -83,6 +83,13 @@ class TunnelManager(object):
         else:
             tunnel_str = "(%s)" % uuid
 
+        # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
+        # broker from being overwhelmed with creating tunnels, especially on embedded devices.
+        # We do this before the per-IP rate limiting so that these failed attempts do not count towards the latter.
+        if self.last_tunnel_created is not None and now - self.last_tunnel_created < self.connection_rate_limit:
+            logger.info("Rejecting tunnel %s due to global rate limiting: last tunnel was created too recently" % tunnel_str)
+            return False
+
         # Rate limit creation of new tunnels with the same IP address.
         # Runs broker.tunnel-connection-threshold hook if threshold exceeded:
         if self.connection_rate_limit_per_ip_count > 0 and self.connection_rate_limit_per_ip_time > 0:
@@ -112,12 +119,6 @@ class TunnelManager(object):
                     return False
             # Append current timestamp at the end of deque collection so the oldest (first) will be dropped.
             tunnelCollection.append(now)
-
-        # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
-        # broker from being overwhelmed with creating tunnels, especially on embedded devices.
-        if self.last_tunnel_created is not None and now - self.last_tunnel_created < self.connection_rate_limit:
-            logger.info("Rejecting tunnel %s due to global rate limiting: last tunnel was created too recently" % tunnel_str)
-            return False
 
         try:
             tunnel_id = self.tunnel_ids.pop()
