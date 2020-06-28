@@ -76,8 +76,8 @@ tunnel_manager = broker.TunnelManager(
     max_tunnels=config.getint('broker', 'max_tunnels'),
     tunnel_id_base=config.getint('broker', 'tunnel_id_base'),
     connection_rate_limit=config.getfloat('broker', 'connection_rate_limit'),
-    connection_rate_limit_per_ip_count=config.getint('broker', 'connection_rate_limit_per_ip_count', 0),
-    connection_rate_limit_per_ip_time=config.getfloat('broker', 'connection_rate_limit_per_ip_time', 0),
+    connection_rate_limit_per_ip_count=config.getint('broker', 'connection_rate_limit_per_ip_count', fallback=0),
+    connection_rate_limit_per_ip_time=config.getfloat('broker', 'connection_rate_limit_per_ip_time', fallback=0),
     pmtu_fixed=config.getint('broker', 'pmtu'),
     log_ip_addresses=config.getboolean('log', 'log_ip_addresses'),
 )
