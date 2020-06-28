@@ -16,9 +16,9 @@ tunnel_id_base=100
 connection_rate_limit=0.2
 ; Reject connection if an IP address connects more than COUNT times in TIME seconds. Also runs
 ; "broker.connection-rate-limit" hook (e.g. to block client via iptables).
-; Disabled when at least one value is 0.
-connection_rate_limit_per_ip_count=20
-connection_rate_limit_per_ip_time=60
+; Disabled when at least one value is 0 (the default).
+;connection_rate_limit_per_ip_count=20
+;connection_rate_limit_per_ip_time=60
 ; Set PMTU to a fixed value.  Use 0 for automatic PMTU discovery.  A non-0 value also disables
 ; PMTU discovery on the client side, by having the server not respond to client-side PMTU
 ; discovery probes.
