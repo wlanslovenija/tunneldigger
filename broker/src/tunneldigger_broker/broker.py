@@ -104,7 +104,7 @@ class TunnelManager(object):
                 if delta <= self.connection_rate_limit_per_ip_time:
                     logger.info("Rejecting tunnel {0} due to per-IP rate limiting: {1} attempts in {2} seconds".format(
                         tunnel_str,
-                        self.connection_rate_limit_per_ip_count+1,
+                        len(tunnelCollection),
                         int(delta),
                     ))
                     broker.hook_manager.run_hook(
