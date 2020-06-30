@@ -192,25 +192,26 @@ Hooks
 There are currently four different hooks, namely:
 
 * ``session.up`` is called after the tunnel interface has been created by the broker and is ready for configuration at
-  the higher layers (example of such a script is found under ``scripts/setup_interface.sh``)
+  the higher layers. (Example of such a script is found under ``scripts/session.up.sh``.)
 
-* ``session.pre-down`` is called just before the tunnel interface is going to be removed by the broker (example is
-  found under ``scripts/teardown_interface.sh``).  Notice that hooks are executed asynchonously, so by the time
-  this script runs, the interface may already be gone.
+* ``session.pre-down`` is called just before the tunnel interface is going to be removed by the broker.
+  Notice that hooks are executed asynchonously, so by the time this script runs, the interface may already be gone.
+  Thus you probably want to use `session.down` instead.
 
-* ``session.down`` is called after the tunnel interface has been destroyed and is no longer available (we currently
-  do not use this hook)
+* ``session.down`` is called after the tunnel interface has been destroyed and is no longer available.
+   (Example is found under ``scripts/session.down.sh``.)
 
 * ``session.mtu-changed`` is called after the broker's path MTU discovery determines that the tunnel's MTU has changed
-  and should be adjusted (example is found under ``scripts/mtu_changed.sh``)
+  and should be adjusted. (Example is found under ``scripts/mtu_changed.sh``.)
 
 * ``broker.connection-rate-limit`` is called when a IP address tries to connect ``connection_rate_limit_per_ip_count``
-  times within ``connection_rate_limit_per_ip_time`` seconds.
+  times within ``connection_rate_limit_per_ip_time`` seconds. (Example is found under ``scripts/broker.connection-rate-limit.sh``.)
 
 Please look at all the example hook scripts carefully and try to understand
 them before use. They should be considered configuration and some things in
 them are hardcoded for our deployment. You will probably have some different
 network configuration and so you should modify the scripts to suit your setup.
+The examples also document the command-line argument passed to the hooks.
 
 Example hook scripts present in the ``scripts/`` subdirectory are set up to
 create one bridge device per MTU and attach L2TP interfaces to these bridges.
