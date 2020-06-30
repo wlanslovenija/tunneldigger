@@ -26,15 +26,19 @@ def setup_template(ubuntu_release):
 
     if not container.defined:
         for i in range(0, 5): # retry a few times, this tends to fail spuriously on travis
+            if i > 0:
+                print("container creation failed, retrying after some waiting...")
+                sleep(30) # wait a bit before next attempt
             if container.create("download", args={"dist": "ubuntu", "release": ubuntu_release, "arch": "amd64"}):
                 break
-            sleep(30) # wait a bit before next attempt
         else:
             raise RuntimeError("failed to create container")
 
     if not container.running:
         if not container.start():
             raise RuntimeError("failed to start container")
+
+    LOG.info("Container created and started; beginning setup")
 
     lxc_run_command(container, ["ip", "a"])
     lxc_run_command(container, ["dhclient", "eth0"])
@@ -117,7 +121,7 @@ def configure_mounts(container):
 
 def create_bridge(name):
     """ setup a linux bridge device """
-    LOG.info("Creating bridg %s", name)
+    LOG.info("Creating bridge %s", name)
     check_call(["brctl", "addbr", name], timeout=10)
     check_call(["ip", "link", "set", name, "up"], timeout=10)
 
