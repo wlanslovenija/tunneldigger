@@ -91,7 +91,7 @@ class TunnelManager(object):
             return False
 
         # Rate limit creation of new tunnels with the same IP address.
-        # Runs broker.tunnel-connection-threshold hook if threshold exceeded:
+        # Runs broker.connection-rate-limit hook if threshold exceeded:
         if self.connection_rate_limit_per_ip_count > 0 and self.connection_rate_limit_per_ip_time > 0:
             if address[0] not in self.last_tunnel_created_per_ip:
                 # Create deque with max size if IP address does not exist in dict
@@ -108,7 +108,7 @@ class TunnelManager(object):
                         int(delta),
                     ))
                     broker.hook_manager.run_hook(
-                        'broker.tunnel-connection-threshold',
+                        'broker.connection-rate-limit',
                         address[0],
                         address[1],
                         uuid,
