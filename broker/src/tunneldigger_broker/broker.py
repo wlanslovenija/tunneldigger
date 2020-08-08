@@ -21,8 +21,8 @@ class TunnelManager(object):
         max_tunnels,
         tunnel_id_base,
         connection_rate_limit,
-        connection_rate_limit_per_ip_count,
-        connection_rate_limit_per_ip_time,
+        connection_rate_limit_per_uuid_count,
+        connection_rate_limit_per_uuid_time,
         pmtu_fixed,
         log_ip_addresses,
     ):
@@ -40,10 +40,10 @@ class TunnelManager(object):
         self.tunnel_ids = set(range(tunnel_id_base, tunnel_id_base + max_tunnels))
         self.tunnels = {}
         self.last_tunnel_created = None
-        self.last_tunnel_created_per_ip = {} # Key: IP address Value: deque collection with timestamps
+        self.last_tunnel_created_per_uuid = {} # Key: UUID; Value: deque collection with timestamps
         self.connection_rate_limit = connection_rate_limit
-        self.connection_rate_limit_per_ip_count = connection_rate_limit_per_ip_count
-        self.connection_rate_limit_per_ip_time = connection_rate_limit_per_ip_time
+        self.connection_rate_limit_per_uuid_count = connection_rate_limit_per_uuid_count
+        self.connection_rate_limit_per_uuid_time = connection_rate_limit_per_uuid_time
         self.pmtu_fixed = pmtu_fixed
         self.require_unique_session_id = False
         self.log_ip_addresses = log_ip_addresses
@@ -85,24 +85,24 @@ class TunnelManager(object):
 
         # Rate limit creation of new tunnels to at most one every 10 seconds to prevent the
         # broker from being overwhelmed with creating tunnels, especially on embedded devices.
-        # We do this before the per-IP rate limiting so that these failed attempts do not count towards the latter.
+        # We do this before the per-UUID rate limiting so that these failed attempts do not count towards the latter.
         if self.last_tunnel_created is not None and now - self.last_tunnel_created < self.connection_rate_limit:
             logger.info("Rejecting tunnel %s due to global rate limiting: last tunnel was created too recently" % tunnel_str)
             return False
 
-        # Rate limit creation of new tunnels with the same IP address.
+        # Rate limit creation of new tunnels with the same UUID.
         # Runs broker.connection-rate-limit hook if threshold exceeded:
-        if self.connection_rate_limit_per_ip_count > 0 and self.connection_rate_limit_per_ip_time > 0:
-            if address[0] not in self.last_tunnel_created_per_ip:
-                # Create deque with max size if IP address does not exist in dict
-                self.last_tunnel_created_per_ip[address[0]] = deque([], self.connection_rate_limit_per_ip_count)
-            tunnelCollection = self.last_tunnel_created_per_ip[address[0]]
-            if len(tunnelCollection) >= self.connection_rate_limit_per_ip_count:
-                # We have "count" many connection attempts registered from this IP.
+        if self.connection_rate_limit_per_uuid_count > 0 and self.connection_rate_limit_per_uuid_time > 0:
+            if uuid not in self.last_tunnel_created_per_uuid:
+                # Create deque with max size if UUID does not exist in dict
+                self.last_tunnel_created_per_uuid[uuid] = deque([], self.connection_rate_limit_per_uuid_count)
+            tunnelCollection = self.last_tunnel_created_per_uuid[uuid]
+            if len(tunnelCollection) >= self.connection_rate_limit_per_uuid_count:
+                # We have "count" many connection attempts registered from this UUID.
                 # Check if they are all within "time".
                 delta = now - tunnelCollection[0] # Delta of oldest timestamp in collection and now
-                if delta <= self.connection_rate_limit_per_ip_time:
-                    logger.info("Rejecting tunnel {0} due to per-IP rate limiting: {1} attempts in {2} seconds".format(
+                if delta <= self.connection_rate_limit_per_uuid_time:
+                    logger.info("Rejecting tunnel {0} due to per-UUID rate limiting: {1} attempts in {2} seconds".format(
                         tunnel_str,
                         len(tunnelCollection),
                         int(delta),
