@@ -123,6 +123,7 @@ class TunnelManager(object):
         try:
             tunnel_id = self.tunnel_ids.pop()
         except KeyError:
+            logger.warning("No more tunnel IDs available -- {} active tunnels".format(len(self.tunnels)))
             return False
 
         logger.info("Creating tunnel %s with id %d." % (tunnel_str, tunnel_id))
