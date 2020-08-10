@@ -55,6 +55,10 @@ class HookProcess(object):
         Closes the hook process.
         """
 
+        if not hasattr(self, "buffer"):
+            # We have already been closed.
+            return
+
         for line in self.buffer.getvalue().decode('utf-8').split('\n'):
             if not line:
                 continue
