@@ -102,11 +102,12 @@ class TunnelManager(object):
                 # Check if they are all within "time".
                 delta = now - tunnelCollection[0] # Delta of oldest timestamp in collection and now
                 if delta <= self.connection_rate_limit_per_ip_time:
-                    logger.info("Rejecting tunnel {0} due to per-IP rate limiting: {1} attempts in {2} seconds".format(
+                    logger.info(
+                        "Rejecting tunnel %s due to per-IP rate limiting: %d attempts in %d seconds",
                         tunnel_str,
                         len(tunnelCollection),
                         int(delta),
-                    ))
+                    )
                     broker.hook_manager.run_hook(
                         'broker.connection-rate-limit',
                         address[0],
@@ -123,9 +124,10 @@ class TunnelManager(object):
         try:
             tunnel_id = self.tunnel_ids.pop()
         except KeyError:
+            logger.warning("No more tunnel IDs available -- %d active tunnels", self.tunnels)
             return False
 
-        logger.info("Creating tunnel %s with id %d." % (tunnel_str, tunnel_id))
+        logger.info("Creating tunnel %s with id %d.", tunnel_str, tunnel_id)
 
         try:
             tunnel = td_tunnel.Tunnel(
