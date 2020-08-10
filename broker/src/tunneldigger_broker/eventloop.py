@@ -57,7 +57,7 @@ class EventLoop(object):
 
                     if event & select.EPOLLIN:
                         pollable.read(file_object)
-                    elif event & select.EPOLLERR:
+                    elif event & select.EPOLLERR or event & select.EPOLLHUP:
                         pollable.close()
             except IOError:
                 # IOError get produced by signal even. in version 3.5 this is fixed an the poll retries
