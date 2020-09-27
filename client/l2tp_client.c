@@ -1362,7 +1362,13 @@ int main(int argc, char **argv)
       }
       case 'a': select_broker = broker_selector_usage; break;
       case 'g': select_broker = broker_selector_first_available; break;
-      case 'r': select_broker = broker_selector_random; break;
+      case 'r': {
+        struct timeval tv;
+        select_broker = broker_selector_random;
+        (void)gettimeofday(&tv, NULL);
+        srand(tv.tv_usec);
+        break;
+      }
 
       case 'f': log_option |= LOG_PERROR; break;
       case 'u': uuid = strdup(optarg); break;
