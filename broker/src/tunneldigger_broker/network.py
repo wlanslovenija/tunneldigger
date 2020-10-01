@@ -36,7 +36,8 @@ class Pollable(object):
         # Since we want all tunnel and tunnel control traffic to use the same port for
         # all clients we enable reuse of ports on the sockets we create.
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode('utf-8'))
+        if interface is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode('utf-8'))
         self.socket.bind(address)
 
         self.address = address
