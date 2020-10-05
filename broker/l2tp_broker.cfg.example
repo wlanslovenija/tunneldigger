@@ -3,7 +3,7 @@
 address=127.0.0.1
 ; Ports where the broker will listen on
 port=53,123,8942
-; Interface with that IP address
+; Interface with that IP address (optional)
 interface=lo
 ; Maximum number of tunnels that will be allowed by the broker.
 ; On a cheap VPS, more than 256 tunnels usually do not make sense.
