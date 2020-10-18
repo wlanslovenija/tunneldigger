@@ -98,9 +98,19 @@ your listing of the modules might look like this:
 System Packages
 ---------------
 
-Also the following Debian packages are required:
+Also the following Debian <= 9 packages are required:
 
 * ``iproute``
+* ``bridge-utils``
+* ``libnetfilter-conntrack-dev``
+* ``libnfnetlink-dev``
+* ``libffi-dev``
+* ``python-dev``
+* ``libevent-dev``
+
+Since debian 10 buster:
+
+* ``iproute2``
 * ``bridge-utils``
 * ``libnetfilter-conntrack-dev``
 * ``libnfnetlink-dev``
@@ -122,9 +132,12 @@ not affect the versions that are installed for Tunneldigger.
 
 .. _virtualenv: http://pypi.python.org/pypi/virtualenv
 
-You can install all of the above simply by running on Debian::
+You can install all of the above simply by running on Debian <= 9::
 
     sudo apt-get install iproute bridge-utils libnetfilter-conntrack-dev libnfnetlink-dev libffi-dev python-dev libevent-dev ebtables python-virtualenv
+
+and for Debian 10::
+    sudo apt install iproute2 bridge-utils libnetfilter-conntrack-dev libnfnetlink-dev libffi-dev python-dev libevent-dev ebtables python-virtualenv
 
 and for Fedora you can use this command::
 
@@ -133,6 +146,8 @@ and for Fedora you can use this command::
 Installation
 ------------
 
+Check for requirements at "System Packages"
+
 If we assume that you are installing Tunneldigger under ``/srv/tunneldigger``
 (the scripts provided with Tunneldigger assume that as well), you can do::
 
@@ -140,7 +155,7 @@ If we assume that you are installing Tunneldigger under ``/srv/tunneldigger``
     virtualenv -p /usr/bin/python3 env_tunneldigger
 
 .. note::
-    Tunneldigger only supports Python 3.
+    Tunneldigger in the newest version only supports Python 3.
     
     Using the above command ensures the virtualenv is created using a Python 3 interpreter.
     In case the Python 3 interpreter you would like to use is not located at ``/usr/bin/python3`` you will have to adjust the path accordingly.
@@ -152,6 +167,9 @@ You can then checkout the Tunneldigger repository into ``/srv/tunneldigger/tunne
 
     cd /srv/tunneldigger
     git clone https://github.com/wlanslovenija/tunneldigger.git
+
+.. note::
+    Checkout `legacy` branch if your kernel is under 5.XXX
 
 Next you have to enter the environment and install the broker alongside its dependencies::
 
