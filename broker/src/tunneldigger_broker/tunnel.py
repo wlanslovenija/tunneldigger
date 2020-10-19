@@ -243,7 +243,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param reason: Reason code for the tunnel being closed
         """
 
-        logger.info("Closing tunnel %d (%s) after %d seconds", self.tunnel_id, self.uuid, time.time() - self.created_time)
+        logger.info("Closing tunnel {} ({}) after {} seconds (reason=0x{:x})".format(self.tunnel_id, self.uuid, int(time.time() - self.created_time), reason))
 
         # Run pre-down hook.
         self.broker.hook_manager.run_hook(
@@ -330,6 +330,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         if msg_type == protocol.CONTROL_TYPE_ERROR:
             # Error notification from the remote side.
             # TODO: Parse error code.
+            logger.warning("Tunnel %d (%s) got error from remote peer", self.tunnel_id, self.uuid)
             self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_OTHER_REQUEST)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
