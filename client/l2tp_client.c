@@ -380,10 +380,18 @@ l2tp_context *context_new(char *uuid, const char *local_ip, const char *broker_h
   }
 
   ctx->broker_hostname = strdup(broker_hostname);
+  if (!ctx->broker_hostname)
+    goto free_and_return;
   ctx->broker_port = strdup(broker_port);
+  if (!ctx->broker_port)
+    goto free_and_return;
 
   ctx->uuid = strdup(uuid);
+  if (!ctx->uuid)
+    goto free_and_return;
   ctx->tunnel_iface = strdup(tunnel_iface);
+  if (!ctx->tunnel_iface)
+    goto free_and_return;
   ctx->tunnel_id = tunnel_id;
   ctx->hook = hook ? strdup(hook) : NULL;
 
@@ -1354,7 +1362,13 @@ int main(int argc, char **argv)
       }
       case 'a': select_broker = broker_selector_usage; break;
       case 'g': select_broker = broker_selector_first_available; break;
-      case 'r': select_broker = broker_selector_random; break;
+      case 'r': {
+        struct timeval tv;
+        select_broker = broker_selector_random;
+        (void)gettimeofday(&tv, NULL);
+        srand(tv.tv_usec);
+        break;
+      }
 
       case 'f': log_option |= LOG_PERROR; break;
       case 'u': uuid = strdup(optarg); break;
