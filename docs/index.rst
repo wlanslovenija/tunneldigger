@@ -24,6 +24,7 @@ Contents
 
    server
    client
+   protocol
 
 Source Code and Issue Tracker
 -----------------------------
