@@ -38,6 +38,8 @@ All fields are encoding with network byte order.
 * Type of the PDU
 * Length of the value
 
+.. _PDU types:
+
 PDU types
 ^^^^^^^^^
 
