@@ -11,10 +11,9 @@ LOCAL_BROKER_PORT="$9"
 
 . scripts/bridge_functions.sh
 
-# Set the interface to UP state
-ip link set dev $INTERFACE up mtu $MTU
-
 # Add the interface to our bridge
 ensure_bridge digger${MTU}
-brctl addif digger${MTU} $INTERFACE
+ip link set dev $INTERFACE master digger${MTU} mtu $MTU up
 
+# Turn on bridge port isolation
+bridge link set dev $INTERFACE isolated on

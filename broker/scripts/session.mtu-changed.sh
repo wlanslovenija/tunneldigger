@@ -7,12 +7,8 @@ NEW_MTU="$5"
 . scripts/bridge_functions.sh
 
 # Remove interface from old bridge
-brctl delif digger${OLD_MTU} $INTERFACE
+ip link set dev $INTERFACE nomaster
 
-# Change interface MTU
-ip link set dev $INTERFACE mtu $NEW_MTU
-
-# Add interface to new bridge
+# Change interface MTU and add to new bridge
 ensure_bridge digger${NEW_MTU}
-brctl addif digger${NEW_MTU} $INTERFACE
-
+ip link set dev $INTERFACE master digger${NEW_MTU} mtu $NEW_MTU up
