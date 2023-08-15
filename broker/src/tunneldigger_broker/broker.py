@@ -200,7 +200,7 @@ class TunnelManager(object):
 
         for tunnel in list(self.tunnels.values()):
             try:
-                tunnel.close()
+                tunnel.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_SHUTDOWN)
             except:
                 traceback.print_exc()
 
