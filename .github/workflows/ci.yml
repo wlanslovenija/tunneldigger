@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches:
+    - 'master'
+  pull_request:
+    branches:
+    - 'master'
+
+jobs:
+  test:
+    name: Test Suite
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - SELECT: nose
+            OLD_REV: "HEAD"
+            OLD_UBUNTU: bionic
+          - SELECT: nose
+            OLD_REV: "v0.3.0"
+            OLD_UBUNTU: bionic
+          - SELECT: nose
+            OLD_REV: "4e4f13cdc630c46909d47441093a5bdaffa0d67f"
+            OLD_UBUNTU: trusty
+          - SELECT: nose
+            OLD_REV: "c638231efca6b3a6e1c675ac0834a3e851ad1bdc"
+            OLD_UBUNTU: trusty
+          - SELECT: usage
+          - SELECT: client
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          set -x
+          git fetch --unshallow # GHA only does a shallow clone
+          sudo add-apt-repository universe
+          sudo apt-get -qq update
+          sudo apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq --assume-no install bison build-essential flex gawk gettext git git-core libncurses5-dev libssl-dev lxc m4 subversion unzip zlib1g-dev python3-lxc python3-nose linux-libc-dev cmake libnl-3-dev libnl-genl-3-dev libasyncns-dev linux-modules-extra-$(uname -r)
+          sudo modprobe l2tp_netlink
+          sudo modprobe l2tp_eth
+          # Newer versions of the broker don't need the following but keep it around for cross-version testing
+          sudo modprobe nf_conntrack
+          sudo modprobe nf_conntrack_netlink
+          sudo iptables -t nat -L >/dev/null
+          sudo iptables -t filter -P FORWARD ACCEPT
+      - name: Run tests
+        run: |
+          export NEW_REV=$(git rev-parse HEAD)
+          export SELECT=${{ matrix.SELECT }}
+          export OLD_REV=${{ matrix.OLD_REV }}
+          export OLD_UBUNTU=${{ matrix.OLD_UBUNTU }}
+          sudo -E ./tests/travis.sh

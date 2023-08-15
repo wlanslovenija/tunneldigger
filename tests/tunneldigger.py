@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 
 import lxc
 from random import randint
@@ -42,7 +42,7 @@ def setup_template(ubuntu_release):
 
     lxc_run_command(container, ["ip", "a"])
     lxc_run_command(container, ["dhclient", "eth0"])
-    check_ping(container, 'google-public-dns-a.google.com', 10)
+    lxc_run_command(container, ["ip", "a"])
     lxc_run_command(container, ["apt-get", "update"])
     lxc_run_command(container, ["apt-get", "dist-upgrade", "-y"])
 
@@ -193,9 +193,10 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24', ubun
     if not cont.start():
         raise RuntimeError("Can not start container %s" % cont.name)
     sleep(3)
-    if not check_ping(cont, 'google-public-dns-a.google.com', 20):
-        raise RuntimeError("Container doesn't have an internet connection %s"
-                % cont.name)
+    # ping does not work on GHA...
+    #if not check_ping(cont, 'google-public-dns-a.google.com', 20):
+    #    raise RuntimeError("Container doesn't have an internet connection %s"
+    #            % cont.name)
 
     script = '/testing/prepare_%s.sh' % cont_type
     LOG.info("Server %s run %s", name, script)
