@@ -3,9 +3,6 @@ Tunneldigger
 
 L2TPv3 VPN tunneling solution
 
-.. image:: https://travis-ci.com/wlanslovenija/tunneldigger.svg?branch=master
-    :target: https://travis-ci.com/wlanslovenija/tunneldigger
-
 About
 -----
 
