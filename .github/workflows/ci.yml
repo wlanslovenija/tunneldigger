@@ -17,16 +17,8 @@ jobs:
         include:
           - SELECT: nose
             OLD_REV: "HEAD"
-            OLD_UBUNTU: bionic
           - SELECT: nose
             OLD_REV: "v0.3.0"
-            OLD_UBUNTU: bionic
-          - SELECT: nose
-            OLD_REV: "4e4f13cdc630c46909d47441093a5bdaffa0d67f"
-            OLD_UBUNTU: trusty
-          - SELECT: nose
-            OLD_REV: "c638231efca6b3a6e1c675ac0834a3e851ad1bdc"
-            OLD_UBUNTU: trusty
           - SELECT: usage
           - SELECT: client
     runs-on: ubuntu-20.04
@@ -48,8 +40,7 @@ jobs:
           sudo iptables -t filter -P FORWARD ACCEPT
       - name: Run tests
         run: |
-          export NEW_REV=$(git rev-parse HEAD)
+          export NEW_REV=HEAD
           export SELECT=${{ matrix.SELECT }}
           export OLD_REV=${{ matrix.OLD_REV }}
-          export OLD_UBUNTU=${{ matrix.OLD_UBUNTU }}
           sudo -E ./tests/travis.sh
