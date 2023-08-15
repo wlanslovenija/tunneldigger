@@ -22,7 +22,7 @@ def setup_template(ubuntu_release):
     """ all test container are cloned from this one
     it's important that this container is *NOT* running!
     """
-    container = lxc.Container("tunneldigger-base-{}".format(ubuntu_release))
+    container = lxc.Container("tunneldigger-base")
 
     if not container.defined:
         for i in range(0, 5): # retry a few times, this tends to fail spuriously on travis
@@ -165,14 +165,14 @@ def testing(client_rev, server_rev):
         raise RuntimeError('Tunneldigger client can not connect to the server')
     run_tests(server, client)
 
-def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24', ubuntu_release="bionic"):
+def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
     if cont_type not in ['server', 'client']:
         raise RuntimeError('Unknown container type given')
     if lxc.Container(name).defined:
         raise RuntimeError('Container "%s" already exist!' % name)
-    LOG.info("Preparing %s on Ubuntu %s" % (cont_type, ubuntu_release))
+    LOG.info("Preparing %s" % cont_type)
 
-    base = lxc.Container("tunneldigger-base-{}".format(ubuntu_release))
+    base = lxc.Container("tunneldigger-base")
 
     if not base.defined:
         raise RuntimeError("Setup first the base container")
@@ -206,7 +206,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24', ubun
     LOG.info("Finished prepare_server %s", name)
     return cont
 
-def prepare_containers(context, client_rev, client_ubuntu_release, server_rev, server_ubuntu_release):
+def prepare_containers(context, client_rev, server_rev):
     """ this does the real test.
     - cloning containers from tunneldigger-base
     - setup network
@@ -222,8 +222,8 @@ def prepare_containers(context, client_rev, client_ubuntu_release, server_rev, s
     bridge_name = "br-%s" % context
 
     create_bridge(bridge_name)
-    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24', server_ubuntu_release)
-    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24', client_ubuntu_release)
+    server = prepare('server', server_name, server_rev, bridge_name, '172.16.16.1/24')
+    client = prepare('client', client_name, client_rev, bridge_name, '172.16.16.100/24')
 
     return client, server
 

@@ -20,15 +20,12 @@ SERVER_PID = None
 CLIENT_PID = None
 
 LOG = logging.getLogger("test_nose")
-DEFAULT_UBUNTU = "bionic"
 
 def setup_module():
     global CONTEXT, SERVER, CLIENT, SERVER_PID, CLIENT_PID
     CONTEXT = tunneldigger.get_random_context()
     LOG.info("using context %s", CONTEXT)
-    CLIENT, SERVER = tunneldigger.prepare_containers(CONTEXT,
-                            os.environ['CLIENT_REV'], DEFAULT_UBUNTU,
-                            os.environ['SERVER_REV'], os.environ.get('SERVER_UBUNTU', DEFAULT_UBUNTU))
+    CLIENT, SERVER = tunneldigger.prepare_containers(CONTEXT, os.environ['CLIENT_REV'], os.environ['SERVER_REV'])
     SERVER_PID = tunneldigger.run_server(SERVER)
     CLIENT_PID = tunneldigger.run_client(CLIENT, ['-b', '172.16.16.1:8942'])
 

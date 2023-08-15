@@ -40,8 +40,8 @@ class TestClientUsage(object):
 
         servers = ['172.16.16.100', '172.16.16.101', '172.16.16.102']
         cont_first = tunneldigger.prepare('server', CONTEXT + '_first_server', os.environ['CLIENT_REV'], bridge_name, servers[0]+'/24')
-        cont_second = tunneldigger.prepare('server', CONTEXT + '_second_server', USAGE_REV, bridge_name, servers[1]+'/24', "trusty")
-        cont_nonusage = tunneldigger.prepare('server', CONTEXT + '_third_server', NONUSAGE_REV, bridge_name, servers[2]+'/24', "trusty")
+        cont_second = tunneldigger.prepare('server', CONTEXT + '_second_server', USAGE_REV, bridge_name, servers[1]+'/24')
+        cont_nonusage = tunneldigger.prepare('server', CONTEXT + '_third_server', NONUSAGE_REV, bridge_name, servers[2]+'/24')
         cont_all_servers = [cont_first, cont_second, cont_nonusage]
 
         cont_dummy_client = tunneldigger.prepare('client', CONTEXT + '_dummy_client', os.environ['CLIENT_REV'],
