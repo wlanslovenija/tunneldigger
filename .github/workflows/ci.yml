@@ -19,6 +19,8 @@ jobs:
             OLD_REV: "HEAD"
           - SELECT: nose
             OLD_REV: "v0.3.0"
+          - SELECT: nose
+            OLD_REV: "origin/legacy"
           - SELECT: usage
           - SELECT: client
     runs-on: ubuntu-20.04
@@ -40,7 +42,6 @@ jobs:
           sudo iptables -t filter -P FORWARD ACCEPT
       - name: Run tests
         run: |
-          export NEW_REV=HEAD
           export SELECT=${{ matrix.SELECT }}
           export OLD_REV=${{ matrix.OLD_REV }}
           sudo -E ./tests/travis.sh
