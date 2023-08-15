@@ -329,8 +329,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         if msg_type == protocol.CONTROL_TYPE_ERROR:
             # Error notification from the remote side.
-            # TODO: Parse error code.
-            logger.warning("Tunnel %d (%s) got error from remote peer", self.tunnel_id, self.uuid)
+            remote_reason = struct.unpack('!B', msg_data)[0]
+            logger.warning("Tunnel {} ({}) got error from remote peer, reason=0x{:x}".format(self.tunnel_id, self.uuid, remote_reason))
             self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_OTHER_REQUEST)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
