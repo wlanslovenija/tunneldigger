@@ -4,6 +4,7 @@ import logging.config
 import os
 import socket
 import sys
+import traceback
 
 from . import broker, eventloop, hooks
 
@@ -114,11 +115,14 @@ try:
     # Start the main event loop.
     event_loop.start()
 except KeyboardInterrupt:
-    pass
-finally:
-    logger.info("Shutting down tunneldigger broker.")
+    logger.info("SIGINT received.")
+except:
+    logger.error("Unhandled top-level exception:")
+    logger.error(traceback.format_exc())
 
-    # Shutdown all brokers and tunnels.
-    for broker_instance in brokers:
-        broker_instance.close()
-    tunnel_manager.close()
+logger.info("Shutting down tunneldigger broker.")
+
+# Shutdown all brokers and tunnels.
+for broker_instance in brokers:
+    broker_instance.close()
+tunnel_manager.close()
