@@ -116,6 +116,7 @@ class HandshakeProtocolMixin(object):
             signed_value = '%s%s%s' % (address[0], address[1], timestamp)
             signature = hmac.HMAC(SECRET_KEY, signed_value.encode('utf-8'), hashlib.sha1).digest()[:6]
             self.write_message(address, CONTROL_TYPE_COOKIE, timestamp + signature)
+            return True
         elif msg_type == CONTROL_TYPE_PREPARE:
             # Packet format:
             # 2 bytes protocol time
@@ -177,6 +178,7 @@ class HandshakeProtocolMixin(object):
             usage = self.get_tunnel_manager().report_usage(client_features)
             usage = struct.pack('!H', usage)
             self.write_message(address, CONTROL_TYPE_USAGE, usage)
+            return True
         else:
             # Invalid message at this stage.
             return False
