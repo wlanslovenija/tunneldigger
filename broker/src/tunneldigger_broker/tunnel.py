@@ -365,6 +365,9 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
                 self.update_mtu()
 
             return True
+        elif msg_type == protocol.CONTROL_TYPE_KEEPALIVE:
+            # Already handled above
+            return True
         elif msg_type & protocol.MASK_CONTROL_TYPE_RELIABLE:
             # Acknowledge reliable control messages.
             self.write_message(self.endpoint, protocol.CONTROL_TYPE_REL_ACK, msg_data[:2])
