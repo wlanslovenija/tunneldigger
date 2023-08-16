@@ -54,7 +54,7 @@ class Pollable(object):
         event_loop.register(self, self.socket, select.EPOLLIN)
         self.event_loop = event_loop
 
-    def close(self):
+    def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
         """
         Closes the underlying socket and stops all timers.
         """
@@ -63,7 +63,7 @@ class Pollable(object):
         self.socket.close()
 
         for timer in self.timers.copy():
-            timer.close()
+            timer.close(reason)
 
     def create_timer(self, callback, timeout=None, interval=None):
         """
@@ -102,7 +102,7 @@ class Pollable(object):
                     if interval is None:
                         timer_self.close()
 
-            def close(timer_self):
+            def close(timer_self, reason=protocol.ERROR_REASON_UNDEFINED):
                 self.event_loop.unregister(timer)
                 self.timers.remove(timer_self)
                 os.close(timer)

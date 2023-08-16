@@ -30,7 +30,8 @@ CONTROL_TYPE_LIMIT     = 0x80
 # left nibble is direction
 ERROR_REASON_FROM_SERVER = 0x00
 ERROR_REASON_FROM_CLIENT = 0x10
-# right nibble is error code
+# right nibble is error code. these are the server error codes.
+# (client error codes differ!)
 ERROR_REASON_OTHER_REQUEST  = 0x01 # other site requested
 ERROR_REASON_SHUTDOWN       = 0x02 # shutdown
 ERROR_REASON_TIMEOUT        = 0x03
