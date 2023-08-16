@@ -6,8 +6,6 @@ import signal
 import subprocess
 import logging
 
-from . import protocol
-
 # Logger.
 logger = logging.getLogger("tunneldigger.hooks")
 
@@ -52,7 +50,10 @@ class HookProcess(object):
         event_loop.register(self, self.process.stderr, select.EPOLLIN)
         self.event_loop = event_loop
 
-    def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
+    def error(self):
+        self.close()
+
+    def close(self):
         """
         Closes the hook process.
         """
@@ -162,7 +163,10 @@ class HookManager(object):
         except OSError as e:
             logger.error("Error while executing script '%s': %s" % (script, e))
 
-    def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
+    def error(self):
+        self.close()
+
+    def close(self):
         os.close(self.sigchld_fd)
 
     def read(self, file_object):
