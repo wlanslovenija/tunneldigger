@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
-import logging
 import lxc
 import os
 import signal
 from time import sleep
 import tunneldigger
-from tunneldigger import run_as_lxc
+from tunneldigger import LOG, run_as_lxc
 
 # random hash
 CONTEXT = None
@@ -19,12 +18,10 @@ CLIENT = None
 SERVER_PID = None
 CLIENT_PID = None
 
-LOG = logging.getLogger("test_nose")
-
 def setup_module():
     global CONTEXT, SERVER, CLIENT, SERVER_PID, CLIENT_PID
     CONTEXT = tunneldigger.get_random_context()
-    LOG.info("using context %s", CONTEXT)
+    LOG("using context %s" % CONTEXT)
     CLIENT, SERVER = tunneldigger.prepare_containers(CONTEXT, os.environ['CLIENT_REV'], os.environ['SERVER_REV'])
     SERVER_PID = tunneldigger.run_server(SERVER)
     CLIENT_PID = tunneldigger.run_client(CLIENT, ['-b', '172.16.16.1:8942'])
@@ -60,5 +57,5 @@ class TestTunneldigger(object):
         sleep(60)
         # get id of l2tp0 iface
         second_interface_id = run_as_lxc(CLIENT, ['bash', '-c', 'ip -o link show l2tp0 | awk -F: \'{ print $1 }\''])
-        LOG.info("Check l2tp is stable for 1m. first id %s == %s second id " % (first_interface_id, second_interface_id))
+        LOG("Check l2tp is stable for 1m. first id %s == %s second id " % (first_interface_id, second_interface_id))
         assert first_interface_id == second_interface_id

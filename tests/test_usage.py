@@ -4,14 +4,11 @@
 # We can no longer test against a server without support for "usage" since those
 # servers just don't run on today's OSes any more (the old Python conntrack bindings broke).
 
-import logging
 import os
 import tunneldigger
-from tunneldigger import check_if_git_contains, run_server, run_client, run_as_lxc
+from tunneldigger import LOG, check_if_git_contains, run_server, run_client, run_as_lxc
 
 OLD_REV = 'v0.3.0'
-
-LOG = logging.getLogger("test_usage")
 
 class TestClientUsage(object):
     def test_usage(self):
@@ -40,8 +37,8 @@ class TestClientUsage(object):
                                                  bridge_name, '172.16.16.1/24')
         cont_all_clients = [cont_dummy_client, cont_client]
 
-        LOG.info("Created servers %s", [x.name for x in cont_all_servers])
-        LOG.info("Created clients %s", [x.name for x in cont_all_clients])
+        LOG("Created servers {}".format([x.name for x in cont_all_servers]))
+        LOG("Created clients {}".format([x.name for x in cont_all_clients]))
 
         # start all servers
         pids_all_servers = [run_server(x) for x in cont_all_servers]

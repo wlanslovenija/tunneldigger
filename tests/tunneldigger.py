@@ -5,14 +5,14 @@ from random import randint
 from subprocess import check_call, check_output
 from time import sleep
 import argparse
-import logging
 import os
 import shlex
 import signal
 import sys
 from threading import Timer
 
-LOG = logging.getLogger("test.tunneldigger")
+def LOG(msg):
+    print("[TEST] {}".format(msg), flush=True)
 
 def lxc_run_command(container, command):
     if container.attach_wait(lxc.attach_run_command, command):
@@ -22,6 +22,7 @@ def setup_template(ubuntu_release):
     """ all test container are cloned from this one
     it's important that this container is *NOT* running!
     """
+    LOG("Creating base container")
     container = lxc.Container("tunneldigger-base")
 
     if not container.defined:
@@ -37,8 +38,6 @@ def setup_template(ubuntu_release):
     if not container.running:
         if not container.start():
             raise RuntimeError("failed to start container")
-
-    LOG.info("Container created and started; beginning setup")
 
     lxc_run_command(container, ["ip", "a"])
     lxc_run_command(container, ["dhclient", "eth0"])
@@ -109,7 +108,7 @@ def configure_mounts(container):
     # mount testing dir
     local_path = os.path.dirname(os.path.realpath(__file__))
     git_repo = local_path + '/../.git'
-    LOG.info("Git repo is at {}".format(git_repo))
+    LOG("Git repo is at {}".format(git_repo))
 
     # TODO: this mount is very dirty and may be DANGEROUS!!! Unescaped.
     # mount this directory to /testing
@@ -121,7 +120,7 @@ def configure_mounts(container):
 
 def create_bridge(name):
     """ setup a linux bridge device """
-    LOG.info("Creating bridge %s", name)
+    LOG("Creating bridge %s" % name)
     check_call(["brctl", "addbr", name], timeout=10)
     check_call(["ip", "link", "set", name, "up"], timeout=10)
 
@@ -170,7 +169,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
         raise RuntimeError('Unknown container type given')
     if lxc.Container(name).defined:
         raise RuntimeError('Container "%s" already exist!' % name)
-    LOG.info("Preparing %s" % cont_type)
+    LOG("Preparing %s (type=%s, ip=%s, revision=%s)" % (name, cont_type, ip_netmask, revision))
 
     base = lxc.Container("tunneldigger-base")
 
@@ -183,7 +182,7 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
             "Please run lxc-stop --name %s -t 5" %
             (base.name, base.name))
 
-    LOG.info("Cloning base (%s) to server (%s)", base.name, name)
+    LOG("Cloning base (%s) to server (%s)" %(base.name, name))
     cont = base.clone(name, flags=lxc.LXC_CLONE_SNAPSHOT, bdevtype='overlayfs')
     if not cont:
         raise RuntimeError('could not create container "%s"' % name)
@@ -199,11 +198,11 @@ def prepare(cont_type, name, revision, bridge, ip_netmask='172.16.16.1/24'):
     #            % cont.name)
 
     script = '/testing/prepare_%s.sh' % cont_type
-    LOG.info("Server %s run %s", name, script)
+    LOG("Server %s run %s" % (name, script))
     ret = cont.attach_wait(lxc.attach_run_command, [script, revision])
     if ret != 0:
         raise RuntimeError('Failed to prepare the container "%s" type %s' % (name, cont_type))
-    LOG.info("Finished prepare_server %s", name)
+    LOG("Finished prepare_server %s" % name)
     return cont
 
 def prepare_containers(context, client_rev, server_rev):
@@ -254,19 +253,19 @@ def run_tests(server, client):
 
 def clean_up(context, client, server):
     """ clean the up all bridge and containers created by this scripts. It will also abort all running tests."""
-    LOG.info("ctx %s clean up", context)
+    LOG("ctx %s clean up" % context)
     # stop containers
     for cont in [client, server]:
         if cont.running:
-            LOG.debug("ctx %s hardstop container %s", context, cont.name)
+            LOG("ctx %s hardstop container %s" % (context, cont.name))
             cont.shutdown(0)
-        LOG.debug("ctx %s destroy container %s", context, cont.name)
+        LOG("ctx %s destroy container %s" % (context, cont.name))
         cont.destroy()
 
     # remove bridge
     bridge_name = 'br-%s' % context
     if os.path.exists('/sys/devices/virtual/net/%s' % bridge_name):
-        LOG.info("ctx %s destroy bridge %s", context, bridge_name)
+        LOG("ctx %s destroy bridge %s" % (context, bridge_name))
         check_call(["ip", "link", "set", bridge_name, "down"], timeout=10)
         check_call(["brctl", "delbr", bridge_name], timeout=10)
 

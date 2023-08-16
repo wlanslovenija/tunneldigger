@@ -40,11 +40,11 @@ test_nose() {
 
   cd $WORKSPACE/tests/
   echo && echo "## Old client, new server" && echo
-  if ! CLIENT_REV=$old_rev SERVER_REV=$new_rev nosetests3 test_nose.py ; then
+  if ! CLIENT_REV=$old_rev SERVER_REV=$new_rev nosetests3 --nocapture test_nose.py ; then
     fail "while running test_nose cli <> server.\nclient: '$old_rev'\nserver: '$new_rev'"
   fi
   echo && echo "## Old server, new client" && echo
-  if ! CLIENT_REV=$new_rev SERVER_REV=$old_rev nosetests3 test_nose.py ; then
+  if ! CLIENT_REV=$new_rev SERVER_REV=$old_rev nosetests3 --nocapture test_nose.py ; then
     fail "while running test_nose cli <> server.\nclient: '$new_rev'\nserver: '$old_rev'"
   fi
 }
@@ -53,7 +53,7 @@ test_usage() {
   local new_rev=$(git rev-parse $1)
 
   cd $WORKSPACE/tests/
-  if ! CLIENT_REV=$new_rev nosetests3 test_usage.py ; then
+  if ! CLIENT_REV=$new_rev nosetests3 --nocapture test_usage.py ; then
     fail "while running usage tests."
   fi
 }
