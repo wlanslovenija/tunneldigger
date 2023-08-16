@@ -20,7 +20,10 @@ class TrafficControl(object):
         Executes a traffic control command.
         """
 
-        if os.system('tc %s' % (command)) != 0 and not ignore_fails:
+        command = 'tc %s' % (command)
+        if ignore_fails:
+            command += ' 2>/dev/null'
+        if os.system(command) != 0 and not ignore_fails:
             raise TrafficControlError
 
     def reset(self):
