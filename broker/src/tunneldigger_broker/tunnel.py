@@ -234,7 +234,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         # Check if the tunnel is still alive.
         if time.time() - self.last_alive > 120:
             logger.warning("Tunnel %d (%s) timed out", self.tunnel_id, self.uuid)
-            self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_TIMEOUT)
+            self.close(reason=protocol.ERROR_REASON_TIMEOUT)
 
     def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
         """
@@ -277,6 +277,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Transmit error message so the other end can tear down the tunnel
         # immediately instead of waiting for keepalive timeout.
+        reason = protocol.ERROR_REASON_FROM_SERVER | reason
         self.write_message(self.endpoint, protocol.CONTROL_TYPE_ERROR, bytearray([reason]))
 
         super(Tunnel, self).close()
@@ -331,7 +332,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             # Error notification from the remote side.
             remote_reason = struct.unpack('!B', msg_data)[0]
             logger.warning("Tunnel {} ({}) got error from remote peer, reason=0x{:x}".format(self.tunnel_id, self.uuid, remote_reason))
-            self.close(reason=protocol.ERROR_REASON_FROM_SERVER | protocol.ERROR_REASON_OTHER_REQUEST)
+            self.close(reason=protocol.ERROR_REASON_OTHER_REQUEST)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
             # The other side is performing PMTU discovery.  Only cooperate if automatic MTU discovery is
