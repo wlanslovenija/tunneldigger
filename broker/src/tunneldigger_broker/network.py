@@ -173,7 +173,8 @@ class Pollable(object):
             return
 
         try:
-            self.message(address, msg_type, msg_data, len(data))
+            if not self.message(address, msg_type, msg_data, len(data)):
+                logger.warning("Unhandled message type 0x{:x}".format(msg_type))
         except KeyboardInterrupt:
             raise
         except:
