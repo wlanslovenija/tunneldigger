@@ -34,7 +34,7 @@ def setup_module():
 
     # explicit no Exception when ping fails
     # it's better to poll the client for a ping rather doing a long sleep
-    tunneldigger.check_ping(CLIENT, '192.168.254.1', 20)
+    tunneldigger.check_ping(CLIENT, '192.168.254.1', 5)
 
 def teardown_module():
     tunneldigger.clean_up(CONTEXT, CLIENT, SERVER)
