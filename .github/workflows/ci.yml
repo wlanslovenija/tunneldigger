@@ -4,6 +4,7 @@ on:
   push:
     branches:
     - 'master'
+    - 'ci'
   pull_request:
     branches:
     - 'master'
@@ -18,9 +19,11 @@ jobs:
           - SELECT: nose
             OLD_REV: "HEAD"
           - SELECT: nose
-            OLD_REV: "v0.3.0"
-          - SELECT: nose
             OLD_REV: "origin/legacy"
+          - SELECT: nose
+            OLD_REV: "v0.3.0"
+          # even older servers (before 436a420aad8aff687822ce342360f5306281ea0b) have the broken
+          # Python conntrack bindings, they do not work any more
           - SELECT: usage
           - SELECT: client
     runs-on: ubuntu-20.04

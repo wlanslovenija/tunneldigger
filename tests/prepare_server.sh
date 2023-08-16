@@ -7,6 +7,7 @@ cd /srv/tunneldigger
 git checkout "$1"
 
 # setup bridge
+# 192.168.254.1 is the hard-coded IP of each server inside the tunnel
 brctl addbr br0
 ip a a 192.168.254.1/24 dev br0
 ip l s br0 up
@@ -57,7 +58,7 @@ fi
 # configure tunneldigger
 # dont let cp fail when using an older version of tunneldigger
 cp /srv/tunneldigger/broker/l2tp_broker.cfg.example /srv/tunneldigger/broker/l2tp_broker.cfg || true
-sed -i "s/127.0.0.1/$IP/g" /srv/tunneldigger/broker/l2tp_broker.cfg
+sed -i "s/^address=.*/address=$IP/" /srv/tunneldigger/broker/l2tp_broker.cfg
 sed -i "s/^interface=.*/interface=eth1/" /srv/tunneldigger/broker/l2tp_broker.cfg
 
 # save the ip into a file where the http server can access it
