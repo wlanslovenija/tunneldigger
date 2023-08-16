@@ -138,7 +138,11 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.create_timer(self.keepalive, timeout=random.randrange(3, 15), interval=5)
         # Spawn PMTU measurement timer. The initial timeout is randomized to avoid all tunnels
         # from starting the measurements at the same time.
-        self.create_timer(self.pmtu_discovery, timeout=random.randrange(5, 30))
+        if self.automatic_pmtu:
+            self.create_timer(self.pmtu_discovery, timeout=random.randrange(0, 5))
+        else:
+            # Send our static MTU. No timer.
+            self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
 
         # Update MTU.
         self.update_mtu(initial=True)
@@ -161,11 +165,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
         Handle periodic PMTU discovery.
         """
-        if not self.automatic_pmtu:
-            # Send our static MTU, and do not renew timer (so we never repeat this).
-            self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
-            return
-
         if self.pmtu_probe_size is not None and self.pmtu_probe_size <= self.pmtu_probe_acked_mtu:
             # No need to check lower PMTUs as we already received acknowledgement. Restart
             # PMTU discovery after sleeping for some time.
@@ -183,8 +182,8 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         probe += b'\x00' * (self.pmtu_probe_size - IPV4_HDR_OVERHEAD - len(probe))
         self.write(self.endpoint, probe)
 
-        # Wait some to get the reply.
-        self.create_timer(self.pmtu_discovery, timeout=random.randrange(2, 5))
+        # Wait some to get the reply, then send the next probe.
+        self.create_timer(self.pmtu_discovery, timeout=1)
 
     def update_mtu(self, initial=False):
         """
@@ -197,7 +196,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         old_tunnel_mtu = self.tunnel_mtu
         self.tunnel_mtu = detected_pmtu
-        logger.info("%s: MTU set to %d." % (self.name, detected_pmtu))
+        logger.info("%s: MTU set to %d (old value: %d)." % (self.name, detected_pmtu, old_tunnel_mtu))
 
         # Alter tunnel MTU.
         try:
@@ -340,12 +339,18 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:
             # The other side is performing PMTU discovery.  Only cooperate if automatic MTU discovery is
             # enabled for this network.
-            pmtu_probe = struct.pack('!H', raw_length)
             if self.automatic_pmtu:
+                pmtu_probe = struct.pack('!H', raw_length)
                 self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTUD_ACK, pmtu_probe)
+            else:
+                # Don't ACK. The current client just sends the same amount of probes whether it gets a reply or not.
+                # By remaining silent, we avoid the client ever getting its own idea of what the MTU might be.
+                # Instead tell it about what the static MTU is so it keeps using that (just in case the previous PMTU_NTFY got lost).
+                self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD_ACK:
             # The other side is acknowledging a specific PMTU value.
+            # If self.automatic_pmtu is not set, we did not send any probes, so we should not get here.
             pmtu = struct.unpack('!H', msg_data)[0] + IPV4_HDR_OVERHEAD
             if self.automatic_pmtu and pmtu > self.pmtu_probe_acked_mtu:
                 self.pmtu_probe_acked_mtu = pmtu
@@ -358,6 +363,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTU_NTFY:
             # The other side is notifying us about their tunnel MTU.
+            # If self.automatic_pmtu is not set, we did not ACK any of their probes, so we should not get here.
             remote_mtu = struct.unpack('!H', msg_data)[0]
 
             if self.automatic_pmtu and remote_mtu != self.remote_tunnel_mtu:
