@@ -54,10 +54,10 @@ class EventLoop(object):
 
                     pollable, file_object = mapping
 
-                    if event & select.EPOLLIN:
+                    if event & select.EPOLLIN or event & select.EPOLLERR or event & select.EPOLLHUP:
+                        # If there's anything new, we read. If there was an error, the read will
+                        # return that error so we can handle it.
                         pollable.read(file_object)
-                    elif event & select.EPOLLERR or event & select.EPOLLHUP:
-                        pollable.error()
             except IOError:
                 # IOError get produced by signal even. in version 3.5 this is fixed an the poll retries
                 # TODO: in py3 it's InterruptedError

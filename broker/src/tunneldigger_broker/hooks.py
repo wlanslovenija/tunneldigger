@@ -50,9 +50,6 @@ class HookProcess(object):
         event_loop.register(self, self.process.stderr, select.EPOLLIN)
         self.event_loop = event_loop
 
-    def error(self):
-        self.close()
-
     def close(self):
         """
         Closes the hook process.
@@ -162,9 +159,6 @@ class HookManager(object):
             self.processes[process.process.pid] = process
         except OSError as e:
             logger.error("Error while executing script '%s': %s" % (script, e))
-
-    def error(self):
-        self.close()
 
     def close(self):
         os.close(self.sigchld_fd)

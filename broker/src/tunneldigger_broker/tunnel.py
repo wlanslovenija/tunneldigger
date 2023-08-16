@@ -239,16 +239,13 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             logger.warning("%s: timed out", self.name)
             self.close(reason=protocol.ERROR_REASON_TIMEOUT)
 
-    def error(self):
-        # Read from the socket, to "consume" the error (and show it in the log)
-        self.read(None)
-        # Here we have a problem. This can indicate permanent connection failure
-        # (https://github.com/wlanslovenija/tunneldigger/issues/143), or it can
-        # indicate that we sent a packet that was too big (e.g. the PMTU probe
-        # reply, see https://github.com/wlanslovenija/tunneldigger/issues/171).
-        # To distinguish the two, we count how many consecutive errors we see without a proper message in between.
-        # If that reaches a threshold, we consider this error permanent and close the connection.
-        # PMTU discovery sends 6 probes, so 10 should be safe as a threshold.
+    def error(self, direction, e):
+        if e.errno == errno.EMSGSIZE:
+            # ignore these, they occur during PMTU probing
+            return
+        super(Tunnel, self).error(direction, e)
+        # This connection is probably dead, but we've seen connections in the wild that occasionally raise
+        # an error. So only kill the connection if this happens again and again.
         # We could just rely on the timeout, but when there's a lot of errors it seems better to
         # kill the connection early rather than waiting for 2 whole minutes.
         self.error_count += 1
@@ -347,8 +344,9 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Update keepalive indicator.
         self.last_alive = time.time()
-        # Remember that we got a message -- reset error count for transient error tolerance.
-        self.error_count = 0
+        # We got a message, so *something* is working. Reduce error count for transient error tolerance.
+        if self.error_count > 0:
+            self.error_count -= 1
 
         if msg_type == protocol.CONTROL_TYPE_ERROR:
             # Error notification from the remote side.
