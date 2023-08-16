@@ -221,7 +221,7 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
         :param tunnel_manager: Tunnel manager instance to use
         """
 
-        super(Broker, self).__init__(address, interface)
+        super(Broker, self).__init__(address, interface, "Broker {}".format(address[1]))
 
         self.tunnel_manager = tunnel_manager
         self.hook_manager = tunnel_manager.hook_manager

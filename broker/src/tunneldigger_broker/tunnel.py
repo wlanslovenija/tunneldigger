@@ -61,7 +61,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param remote_tunnel_id: Remotely assigned tunnel identifier
         """
 
-        super(Tunnel, self).__init__(address, broker.interface)
+        super(Tunnel, self).__init__(address, broker.interface, "Tunnel %d (%s)" % (tunnel_id, uuid))
         self.socket.connect(endpoint)
         self.socket.setsockopt(socket.IPPROTO_IP, IP_MTU_DISCOVER, IP_PMTUDISC_PROBE)
 
@@ -197,7 +197,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         old_tunnel_mtu = self.tunnel_mtu
         self.tunnel_mtu = detected_pmtu
-        logger.info("Set tunnel %d MTU to %d." % (self.tunnel_id, detected_pmtu))
+        logger.info("%s: MTU set to %d." % (self.name, detected_pmtu))
 
         # Alter tunnel MTU.
         try:
@@ -205,7 +205,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             data = struct.pack("16si", interface_name, self.tunnel_mtu)
             fcntl.ioctl(self.socket, SIOCSIFMTU, data)
         except IOError:
-            logger.warning("Failed to set MTU for tunnel %d! Is the interface down?" % self.tunnel_id)
+            logger.warning("%s: Failed to set MTU! Is the interface down?" % self.name)
 
         self.broker.netlink.session_modify(self.tunnel_id, self.session_id, self.tunnel_mtu)
 
@@ -233,7 +233,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         # Check if the tunnel is still alive.
         if time.time() - self.last_alive > 120:
-            logger.warning("Tunnel %d (%s) timed out", self.tunnel_id, self.uuid)
+            logger.warning("%s: timed out", self.name)
             self.close(reason=protocol.ERROR_REASON_TIMEOUT)
 
     def error(self):
@@ -246,7 +246,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         :param reason: Reason code for the tunnel being closed
         """
 
-        logger.info("Closing tunnel {} ({}) after {} seconds (reason=0x{:x})".format(self.tunnel_id, self.uuid, int(time.time() - self.created_time), reason))
+        logger.info("{}: Closing after {} seconds (reason=0x{:x})".format(self.name, int(time.time() - self.created_time), reason))
 
         # Run pre-down hook.
         self.broker.hook_manager.run_hook(
@@ -295,15 +295,15 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
 
         if uuid != self.uuid:
-            logger.warning("Protocol error: tunnel UUID has changed.")
+            logger.warning("{}: Protocol error: tunnel UUID has changed.".format(self.name))
             return False
 
         if remote_tunnel_id != self.remote_tunnel_id:
-            logger.warning("Protocol error: tunnel identifier has changed.")
+            logger.warning("{}: Protocol error: tunnel identifier has changed.".format(self.name))
             return False
 
         if client_features != self.client_features:
-            logger.warning("Protocol error: client features have changed.")
+            logger.warning("{}: Protocol error: client features have changed.".format(self.name))
             return False
 
         # Respond with tunnel establishment message.
@@ -322,7 +322,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         """
 
         if address != self.endpoint:
-            logger.warning("Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
+            logger.warning("{}: Protocol error: tunnel endpoint has changed. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126".format(self.name))
             return False
 
         if super(Tunnel, self).message(address, msg_type, msg_data, raw_length):
@@ -334,7 +334,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         if msg_type == protocol.CONTROL_TYPE_ERROR:
             # Error notification from the remote side.
             remote_reason = struct.unpack('!B', msg_data)[0]
-            logger.warning("Tunnel {} ({}) got error from remote peer, reason=0x{:x}".format(self.tunnel_id, self.uuid, remote_reason))
+            logger.warning("{}: got error from remote peer, reason=0x{:x}".format(self.name, remote_reason))
             self.close(reason=protocol.ERROR_REASON_OTHER_REQUEST)
             return True
         elif msg_type == protocol.CONTROL_TYPE_PMTUD:

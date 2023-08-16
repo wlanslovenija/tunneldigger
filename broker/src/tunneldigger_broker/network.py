@@ -23,7 +23,7 @@ class Pollable(object):
     event loop.
     """
 
-    def __init__(self, address, interface):
+    def __init__(self, address, interface, name):
         """
         Constructs a new pollable instance.
 
@@ -41,6 +41,7 @@ class Pollable(object):
 
         self.address = address
         self.interface = interface
+        self.name = name
         self.event_loop = None
         self.timers = set()
 
@@ -174,11 +175,11 @@ class Pollable(object):
 
         try:
             if not self.message(address, msg_type, msg_data, len(data)):
-                logger.warning("Unhandled message type 0x{:x}".format(msg_type))
+                logger.warning("{}: Unhandled message type 0x{:x}".format(self.name, msg_type))
         except KeyboardInterrupt:
             raise
         except:
-            logger.error("Unhandled exception during message processing.")
+            logger.error("{}: Unhandled exception during message processing.".format(self.name))
             logger.error(traceback.format_exc())
 
     def message(self, address, msg_type, msg_data, raw_length):
