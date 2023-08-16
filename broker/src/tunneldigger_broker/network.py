@@ -166,7 +166,8 @@ class Pollable(object):
 
         try:
             data, address = self.socket.recvfrom(2048)
-        except socket.error:
+        except socket.error as e:
+            logger.warning("{}: error reading from socket: {}".format(self.name, e))
             return
 
         msg_type, msg_data = protocol.parse_message(data)
