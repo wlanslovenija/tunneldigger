@@ -129,7 +129,7 @@ class Pollable(object):
 
         try:
             self.socket.sendto(data, address)
-        except socket.error:
+        except socket.error as e:
             self.error("writing", e)
             return
 
