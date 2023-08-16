@@ -10,8 +10,8 @@ on:
     - 'master'
 
 jobs:
-  test:
-    name: Test Suite
+  server:
+    name: Test Server
     strategy:
       fail-fast: false
       matrix:
@@ -25,7 +25,6 @@ jobs:
           # even older servers (before 436a420aad8aff687822ce342360f5306281ea0b) have the broken
           # Python conntrack bindings, they do not work any more
           - SELECT: usage
-          - SELECT: client
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
@@ -35,11 +34,10 @@ jobs:
           git fetch --unshallow # GHA only does a shallow clone
           sudo add-apt-repository universe
           sudo apt-get -qq update
-          sudo apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" -qq --assume-no \
-            install bison build-essential flex gawk gettext git git-core libncurses5-dev \
-            libssl-dev lxc m4 subversion unzip zlib1g-dev python3-lxc python3-nose \
-            linux-libc-dev cmake libnl-3-dev libnl-genl-3-dev libasyncns-dev \
-            linux-modules-extra-$(uname -r)
+          # This is only what we need to install on the *host*.
+          # Server and client will be built in containers set up by `setup_template` in `tunneldigger.py`
+          # as well as the `prepare_{server,client}.sh` scripts.
+          sudo apt-get --assume-no install lxc python3-lxc python3-nose linux-modules-extra-$(uname -r)
           sudo modprobe l2tp_netlink
           sudo modprobe l2tp_eth
           # Newer versions of the broker don't need the following but keep it around for cross-version testing
@@ -51,4 +49,16 @@ jobs:
         run: |
           export SELECT=${{ matrix.SELECT }}
           export OLD_REV=${{ matrix.OLD_REV }}
+          sudo -E ./tests/travis.sh
+  client:
+    name: Test Client
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup
+        run: |
+          sudo apt-get --assume-no install cmake libnl-3-dev libnl-genl-3-dev libasyncns-dev
+      - name: Run tests
+        run: |
+          export SELECT=client
           sudo -E ./tests/travis.sh
