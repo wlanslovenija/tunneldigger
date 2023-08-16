@@ -94,7 +94,7 @@ class Pollable(object):
                     if not os.read(timer, timerfd.bufsize):
                         return timer_self.close()
                 except OSError as e:
-                    if e.args[0] in (errno.EINTR, errno.EAGAIN):
+                    if e.errno in (errno.EINTR, errno.EAGAIN):
                         return
 
                     raise
@@ -167,7 +167,11 @@ class Pollable(object):
         try:
             data, address = self.socket.recvfrom(2048)
         except socket.error as e:
-            logger.warning("{}: error reading from socket: {}".format(self.name, e))
+            if e.errno == errno.EMSGSIZE:
+                # silence these, they occur during PMTU probing
+                pass
+            else:
+                logger.warning("{}: error reading from socket: {}".format(self.name, e))
             return
 
         msg_type, msg_data = protocol.parse_message(data)
