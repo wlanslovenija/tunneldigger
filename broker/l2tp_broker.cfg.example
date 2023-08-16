@@ -12,10 +12,11 @@ max_tunnels=256
 ; Tunnel id base
 tunnel_id_base=100
 ; Reject connections if there are less than N seconds since the last connection.
-; Can be less than a second (e.g., 0.1).
+; Can be less than a second (e.g., 0.1). Note that this is applied *per broker port*.
+; Disabled if set to 0.
 connection_rate_limit=0.2
-; Reject connection if an IP address connects more than COUNT times in TIME seconds. Also runs
-; "broker.connection-rate-limit" hook (e.g. to block client via iptables).
+; Reject connection if an IP address connects more than COUNT times in TIME seconds to
+; the same broker port. Also runs "broker.connection-rate-limit" hook (e.g. to block client via iptables).
 ; Disabled when at least one value is 0 (the default).
 ;connection_rate_limit_per_ip_count=20
 ;connection_rate_limit_per_ip_time=60
