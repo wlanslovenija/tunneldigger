@@ -125,6 +125,9 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         self.created_time = time.time()
 
+        # Update MTU.
+        self.update_mtu(initial=True)
+
         # Respond with tunnel establishment message.
         server_features = self.client_features & protocol.FEATURES_MASK
         if server_features:
@@ -144,9 +147,6 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         else:
             # Send our static MTU. No timer.
             self.write_message(self.endpoint, protocol.CONTROL_TYPE_PMTU_NTFY, struct.pack('!H', self.measured_pmtu))
-
-        # Update MTU.
-        self.update_mtu(initial=True)
 
         # Call session up hook.
         self.broker.hook_manager.run_hook(
@@ -197,7 +197,10 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         old_tunnel_mtu = self.tunnel_mtu
         self.tunnel_mtu = detected_pmtu
-        logger.info("%s: MTU set to %d (old value: %d)." % (self.name, detected_pmtu, old_tunnel_mtu))
+        if initial:
+            logger.info("%s: initial MTU set to %d." % (self.name, detected_pmtu))
+        else:
+            logger.info("%s: MTU set to %d (old value: %d)." % (self.name, detected_pmtu, old_tunnel_mtu))
 
         # Alter tunnel MTU.
         try:
