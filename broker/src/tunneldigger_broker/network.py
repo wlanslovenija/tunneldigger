@@ -55,8 +55,11 @@ class Pollable(object):
         event_loop.register(self, self.socket, select.EPOLLIN)
         self.event_loop = event_loop
 
-    def error(self):
-        self.close()
+    def error(self, direction, e):
+        """
+        `direction` can be "reading" or "writing"
+        """
+        logger.warning("{}: error {} socket: {}".format(self.name, direction, e))
 
     def close(self):
         """
@@ -106,9 +109,6 @@ class Pollable(object):
                     if interval is None:
                         timer_self.close()
 
-            def error(self):
-                self.close()
-
             def close(timer_self):
                 self.event_loop.unregister(timer)
                 self.timers.remove(timer_self)
@@ -130,6 +130,7 @@ class Pollable(object):
         try:
             self.socket.sendto(data, address)
         except socket.error:
+            self.error("writing", e)
             return
 
     def write_message(self, address, msg_type, msg_data=b''):
@@ -167,11 +168,7 @@ class Pollable(object):
         try:
             data, address = self.socket.recvfrom(2048)
         except socket.error as e:
-            if e.errno == errno.EMSGSIZE:
-                # silence these, they occur during PMTU probing
-                pass
-            else:
-                logger.warning("{}: error reading from socket: {}".format(self.name, e))
+            self.error("reading", e)
             return
 
         msg_type, msg_data = protocol.parse_message(data)
