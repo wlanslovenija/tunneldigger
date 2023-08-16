@@ -79,6 +79,7 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
         self.created_time = None
         self.keepalive_seqno = 0
         self.error_count = 0
+        self.closing = False
 
         # Initialize PMTU values.
         self.automatic_pmtu = pmtu_fixed == 0
@@ -259,6 +260,11 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
 
         :param reason: Reason code for the tunnel being closed
         """
+
+        if self.closing:
+            # While closing we send messages, and that can fail and we can recursively end up here again.
+            return
+        self.closing = True
 
         logger.info("{}: Closing after {} seconds (reason=0x{:x})".format(self.name, int(time.time() - self.created_time), reason))
 
