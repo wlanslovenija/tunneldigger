@@ -236,6 +236,9 @@ class Tunnel(protocol.HandshakeProtocolMixin, network.Pollable):
             logger.warning("Tunnel %d (%s) timed out", self.tunnel_id, self.uuid)
             self.close(reason=protocol.ERROR_REASON_TIMEOUT)
 
+    def error(self):
+        self.close(reason=protocol.ERROR_REASON_FAILURE)
+
     def close(self, reason=protocol.ERROR_REASON_UNDEFINED):
         """
         Closes the tunnel.
