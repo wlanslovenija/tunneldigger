@@ -264,4 +264,8 @@ class Broker(protocol.HandshakeProtocolMixin, network.Pollable):
                 logger.warning("Protocol error: broker received tunnel message. Possibly due to kernel bug. See: https://github.com/wlanslovenija/tunneldigger/issues/126")
 
         # Fall back to normal broker processing.
-        return super(Broker, self).message(address, msg_type, msg_data, raw_length)
+        if super(Broker, self).message(address, msg_type, msg_data, raw_length):
+            return True
+
+        # We sometimes see messages for dead tunnels. Ignore them.
+        return True
