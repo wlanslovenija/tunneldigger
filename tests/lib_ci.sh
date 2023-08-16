@@ -22,7 +22,7 @@ function endgroup {
 setup_container() {
   /usr/bin/env python --version
   begingroup "Preparing LXC container template"
-  if ! $WORKSPACE/tests/tunneldigger.py --setup bionic ; then
+  if ! $WORKSPACE/tests/tunneldigger.py --setup focal ; then
     fail "While compiling the setup"
   fi
   endgroup

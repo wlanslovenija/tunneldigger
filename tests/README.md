@@ -4,7 +4,7 @@ The automatic testing with tunneldigger uses lxc container and the python3 api o
 
 ## Vagrantfile
 
-The test setup was tested with Ubuntu Bionic; you can use the Vagrantfile to set that up.
+The test setup was tested with Ubuntu Focal; you can use the Vagrantfile to set that up.
 
 ```shell
 vagrant up
@@ -12,7 +12,7 @@ vagrant ssh
 # Inside the VM:
 sudo su
 cd /tunneldigger/tests
-./tunneldigger.py --setup bionic
+./tunneldigger.py --setup focal
 CLIENT_REV=HEAD SERVER_REV=HEAD nosetests3 test_nose.py
 ```
 
