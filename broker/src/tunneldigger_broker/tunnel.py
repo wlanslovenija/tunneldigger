@@ -4,6 +4,7 @@ import random
 import socket
 import struct
 import time
+import errno
 
 from . import l2tp, protocol, network, limits
 
