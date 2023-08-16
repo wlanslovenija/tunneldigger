@@ -57,7 +57,7 @@ def setup_template(ubuntu_release):
         "python3-dev",
         "libevent-dev",
         "ebtables",
-        "python-virtualenv",
+        "virtualenv",
         "build-essential",
         "cmake",
         "libnl-3-dev",
