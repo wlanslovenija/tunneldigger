@@ -48,6 +48,7 @@ You are welcome to add your distribution if the instructions work and to edit th
 
 * Debian
 * Fedora with the package ``kernel-modules-extra``
+* OpenWrt with the package ``tunneldigger-broker`` in the packages repo
 * *add your distribution*
 
 Kernel Modules
