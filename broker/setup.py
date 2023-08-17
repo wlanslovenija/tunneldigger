@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import find_packages, setup
 
-VERSION = '0.4.0.dev1'
+VERSION = '0.4.0'
 
 setup(
     name='tunneldigger-broker',
@@ -17,7 +17,7 @@ setup(
     packages=find_packages(where='src'),
     package_data={},
     classifiers=[
-        'Development Status :: 4 - Beta',
+        'Development Status :: 5 - Production/Stable',
         'Intended Audience :: System Administrators',
         'License :: OSI Approved :: GNU Affero General Public License v3',
         'Programming Language :: Python',
