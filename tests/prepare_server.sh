@@ -49,8 +49,7 @@ fi
 
 . /srv/env_tunneldigger/bin/activate
 if [ -f /srv/tunneldigger/broker/setup.py ]; then
-    cd /srv/tunneldigger/broker
-    python setup.py install
+    pip install /srv/tunneldigger/broker
 else
     pip install -r /srv/tunneldigger/broker/requirements.txt
 fi

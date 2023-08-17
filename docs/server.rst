@@ -163,8 +163,7 @@ You can then checkout the Tunneldigger repository into ``/srv/tunneldigger/tunne
 Next you have to enter the environment and install the broker alongside its dependencies::
 
     source env_tunneldigger/bin/activate
-    cd tunneldigger/broker
-    python setup.py install
+    pip install tunneldigger/broker
 
 Configuration
 -------------
