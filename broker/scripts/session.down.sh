@@ -9,5 +9,5 @@ UUID="$8"
 LOCAL_BROKER_PORT="$9"
 
 # Remove the interface from our bridge
-brctl delif digger${MTU} $INTERFACE
+ip link set dev $INTERFACE nomaster
 
