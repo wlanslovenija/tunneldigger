@@ -92,11 +92,18 @@ brokers = []
 broker_host = config.get('broker', 'address')
 for port in config.get('broker', 'port').split(','):
     try:
-        broker_instance = broker.Broker(
-            (broker_host, int(port)),
-            config.get('broker', 'interface'),
-            tunnel_manager,
-        )
+        if config.has_option('broker', 'interface'):
+            broker_instance = broker.Broker(
+                (broker_host, int(port)),
+                config.get('broker', 'interface'),
+                tunnel_manager,
+            )
+        else:
+            broker_instance = broker.Broker(
+                (broker_host, int(port)),
+                None,
+                tunnel_manager,
+            )
         logger.info("Listening on %s:%d." % broker_instance.address)
     except ValueError:
         logger.warning("Malformed port number '%s', skipping." % port)

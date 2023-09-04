@@ -177,7 +177,7 @@ changed and some that can be left as default:
 
 * **port** should be configured with the external port (or ports separated by commas) that the clients will use to connect with the broker.
 
-* **interface** should be configured with the name of the external interface that the clients will connect to.
+* **interface** is a optional parameter and should be configured with the name of the external interface that the clients will connect to.
 
 * Hooks in the **hooks** section should be configured with paths to executable scripts that will be called when certain events occur in the broker. They are empty by default which means that tunnels will be established but they will not be configured.
 
