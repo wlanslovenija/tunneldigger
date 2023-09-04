@@ -24,6 +24,8 @@ Contents
 
    server
    client
+   protocol
+   capture_analyse_packets
 
 Source Code and Issue Tracker
 -----------------------------
