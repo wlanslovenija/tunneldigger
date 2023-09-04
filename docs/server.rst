@@ -116,6 +116,13 @@ Also the following Debian packages are required:
 * ``python-dev``
 * ``libevent-dev``
 
+Debian 10 required following packages:
+* ``iproute2``
+* ``bridge-utils``
+* ``python-dev``
+* ``libevent-dev``
+* ``libnetfilter-conntrack-dev``
+
 If you would like to use the already supplied hook scripts to setup the network
 interfaces, you also need the following packages:
 
@@ -134,6 +141,10 @@ You can install all of the above simply by running on Debian::
 
     sudo apt-get install iproute bridge-utils python-dev libevent-dev ebtables python-virtualenv
 
+and Debian 10::
+
+    sudo apt install iproute2 libnetfilter-conntrack-dev bridge-utils python-dev libevent-dev ebtables python-virtualenv
+
 and for Fedora you can use this command::
 
     sudo yum install iproute bridge-utils python-devel libevent-devel ebtables libnl-devel python-pip python-virtualenv
@@ -148,7 +159,7 @@ If we assume that you are installing Tunneldigger under ``/srv/tunneldigger``
     virtualenv -p /usr/bin/python3 env_tunneldigger
 
 .. note::
-    Tunneldigger only supports Python 3.
+    Latest Tunneldigger only supports Python 3.
     
     Using the above command ensures the virtualenv is created using a Python 3 interpreter.
     In case the Python 3 interpreter you would like to use is not located at ``/usr/bin/python3`` you will have to adjust the path accordingly.
@@ -161,6 +172,9 @@ You can then checkout the Tunneldigger repository into ``/srv/tunneldigger/tunne
     cd /srv/tunneldigger
     git clone https://github.com/wlanslovenija/tunneldigger.git
 
+.. note::
+    You may need to checkout another branch (legacy) and check requirements. For details please look at "Operating System" and "System Packages"
+    
 Next you have to enter the environment and install the broker alongside its dependencies::
 
     source env_tunneldigger/bin/activate
