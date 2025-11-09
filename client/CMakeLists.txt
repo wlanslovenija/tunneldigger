@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.10)
 project (tunneldigger C)
 
 set(USE_LIBNL FALSE CACHE BOOL "Explicitly use libnl over libnl-tiny")
