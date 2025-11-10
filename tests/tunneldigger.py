@@ -22,7 +22,7 @@ def setup_template(ubuntu_release):
     """ all test container are cloned from this one
     it's important that this container is *NOT* running!
     """
-    LOG("Creating base container")
+    LOG("Creating base container (Ubuntu {})".format(ubuntu_release))
     container = lxc.Container("tunneldigger-base")
 
     if not container.defined:
