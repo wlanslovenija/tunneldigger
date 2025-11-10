@@ -25,7 +25,7 @@ jobs:
           # even older servers (before 436a420aad8aff687822ce342360f5306281ea0b) have the broken
           # Python conntrack bindings, they do not work any more
           - SELECT: usage
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Setup
@@ -52,7 +52,7 @@ jobs:
           sudo -E ./tests/travis.sh
   client:
     name: Test Client
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
       - name: Setup
